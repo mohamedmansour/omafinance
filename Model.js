@@ -341,6 +341,7 @@ function quoteFromChart(result, fallbackSymbol) {
     fiftyTwoWeekHigh: finiteOrNull(meta.fiftyTwoWeekHigh),
     fiftyTwoWeekLow: finiteOrNull(meta.fiftyTwoWeekLow),
     priceHint: meta.priceHint,
+    yahooRange: meta.range ? String(meta.range) : "",
     closes: numericCloses(result.indicators)
   }
 }

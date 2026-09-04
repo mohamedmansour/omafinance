@@ -77,7 +77,14 @@ Panel {
     return detailRangeChange
   }
   property var heldMainChange: null
+  readonly property bool awaitingRangeChart: {
+    if (view !== "detail" || !detailSymbol) return false
+    if (detailQuote && detailQuote.chartRange === detailRange) return false
+    if (detailRange === "1D" && quotes[detailSymbol]) return false
+    return true
+  }
   readonly property var shownMainChange: {
+    if (awaitingRangeChart) return heldMainChange
     var n = Number(detailMainChange)
     if (detailMainChange != null && isFinite(n)) return detailMainChange
     return heldMainChange
@@ -88,6 +95,7 @@ Panel {
   readonly property int rowHeight: Style.space(56)
 
   onDetailMainChangeChanged: {
+    if (awaitingRangeChart) return
     var n = Number(detailMainChange)
     if (detailMainChange != null && isFinite(n)) heldMainChange = detailMainChange
   }
@@ -458,7 +466,9 @@ Panel {
         var parsed = Model.parseChart(text)
         if (!parsed || parsed.symbol !== root.detailSymbol) return
         if (root.chartFetchRange !== root.detailRange) return
-        parsed.chartRange = root.chartFetchRange
+        var expected = Model.chartSpec(root.detailRange).range
+        if (parsed.yahooRange && parsed.yahooRange !== expected) return
+        parsed.chartRange = root.detailRange
         root.detailQuote = parsed
       }
     }
