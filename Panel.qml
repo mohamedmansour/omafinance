@@ -76,6 +76,10 @@ Panel {
     readonly property bool showChange: setting("showChange", legacyShowOnBar) !== false
     readonly property bool showBarData: showTicker || showPrice || showChange
     readonly property bool showBarQuote: showPrice || showChange
+    readonly property int changeStyleSettingsIndex: 3
+    readonly property int refreshSettingsIndex: showChange ? 4 : 3
+    readonly property int barSectionSettingsIndex: showChange ? 5 : 4
+    readonly property int settingsLastIndex: barSectionSettingsIndex
     readonly property int backgroundRefreshMs: Model.backoffDelay(refreshSeconds * 1000, quoteFailureCount, 3600000)
     readonly property int liveRefreshMs: Model.backoffDelay(2000, quoteFailureCount, 60000)
     readonly property int chartRefreshMs: Model.backoffDelay(15000, chartFailureCount, 120000)
@@ -710,7 +714,7 @@ Panel {
     function moveFocus(dx, dy) {
         if (view === "settings") {
             if (dy !== 0)
-                settingsCursor = Math.max(0, Math.min(5, settingsCursor + dy));
+                settingsCursor = Math.max(0, Math.min(settingsLastIndex, settingsCursor + dy));
             if (dx !== 0) {
                 if (settingsCursor === 0)
                     setShowTicker(dx > 0);
@@ -718,11 +722,11 @@ Panel {
                     setShowPrice(dx > 0);
                 else if (settingsCursor === 2)
                     setShowChange(dx > 0);
-                else if (settingsCursor === 3)
-                    setRefreshSeconds(refreshSeconds + dx * 15);
-                else if (settingsCursor === 4)
+                else if (showChange && settingsCursor === changeStyleSettingsIndex)
                     setChangeStyle(dx > 0 ? "dollars" : "percent");
-                else if (settingsCursor === 5) {
+                else if (settingsCursor === refreshSettingsIndex)
+                    setRefreshSeconds(refreshSeconds + dx * 15);
+                else if (settingsCursor === barSectionSettingsIndex) {
                     var sections = ["left", "center", "right"];
                     var i = sections.indexOf(barSection);
                     if (i < 0)
