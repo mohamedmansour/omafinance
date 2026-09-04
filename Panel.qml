@@ -563,7 +563,11 @@ Panel {
     }
 
     function prefetchDetail(symbol) {
-        prepareDetail(symbol);
+        if (!prepareDetail(symbol))
+            return;
+        detailEnrichmentTimer.stop();
+        fetchInsights();
+        fetchQuotePage();
     }
 
     function openDetail(symbol) {
@@ -615,8 +619,7 @@ Panel {
         if (!detailSymbol)
             return;
         startChartFetch();
-        fetchInsights();
-        fetchQuotePage();
+        detailEnrichmentTimer.restart();
     }
 
     function fetchInsights() {
@@ -1088,6 +1091,16 @@ Panel {
         id: searchDebounce
         interval: 100
         onTriggered: root.requestSearch()
+    }
+
+    Timer {
+        id: detailEnrichmentTimer
+        interval: 16
+        repeat: false
+        onTriggered: {
+            root.fetchInsights();
+            root.fetchQuotePage();
+        }
     }
 
     Timer {

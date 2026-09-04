@@ -124,9 +124,17 @@ test("watchlist pointer-down prefetches details without duplicating the click fe
   const list = fs.readFileSync(path.join(root, "FinanceListView.qml"), "utf8")
 
   assert.match(list, /onPressed:\s*function\s*\(mouse\)[\s\S]*?mouse\.button === Qt\.LeftButton[\s\S]*?controller\.prefetchDetail\(symbol\)/)
-  assert.match(panel, /function prefetchDetail\(symbol\)\s*\{\s*prepareDetail\(symbol\);?\s*\}/)
+  assert.match(panel, /function prefetchDetail\(symbol\)[\s\S]*?detailEnrichmentTimer\.stop\(\);[\s\S]*?fetchInsights\(\);[\s\S]*?fetchQuotePage\(\);/)
   assert.match(panel, /function prepareDetail\(symbol\)[\s\S]*?if \(detailSymbol === next\)\s*return true;/)
   assert.match(panel, /function openDetail\(symbol\)\s*\{\s*if \(!prepareDetail\(symbol\)\)/)
+})
+
+test("detail chart starts immediately while large enrichment waits one frame", () => {
+  const panel = fs.readFileSync(path.join(root, "Panel.qml"), "utf8")
+
+  assert.match(panel, /function fetchDetail\(\)\s*\{[\s\S]*?startChartFetch\(\);[\s\S]*?detailEnrichmentTimer\.restart\(\);/)
+  assert.match(panel, /id:\s*detailEnrichmentTimer\s*\n\s*interval:\s*16/)
+  assert.match(panel, /onTriggered:\s*\{[\s\S]*?root\.fetchInsights\(\);[\s\S]*?root\.fetchQuotePage\(\);/)
 })
 
 test("watchlist virtualizes a capped set of reusable rows", () => {
