@@ -136,6 +136,12 @@ function sparkUrl(symbols) {
     + "&range=1d&interval=5m&includePrePost=true"
 }
 
+function quoteSymbolsForView(watchlist, detailSymbol, view) {
+  var detail = normalizeSymbol(detailSymbol)
+  if (view === "detail" && detail) return [detail]
+  return Array.isArray(watchlist) ? watchlist.slice() : []
+}
+
 function chartRanges() {
   return ["1D", "1W", "1M", "YTD", "1Y", "5Y", "All"]
 }
@@ -286,7 +292,7 @@ function parseSearch(raw) {
       var row = quotes[i]
       if (!row || !row.symbol) continue
       var type = String(row.quoteType || "")
-      if (type === "FUTURE" || type === "OPTION") continue
+      if (type === "OPTION") continue
       var symbol = normalizeSymbol(row.symbol)
       if (!symbol || seen[symbol]) continue
       seen[symbol] = true
@@ -779,6 +785,7 @@ if (typeof module !== "undefined") {
     barSymbol: barSymbol,
     searchUrl: searchUrl,
     sparkUrl: sparkUrl,
+    quoteSymbolsForView: quoteSymbolsForView,
     chartRanges: chartRanges,
     normalizeRange: normalizeRange,
     chartSpec: chartSpec,

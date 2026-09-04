@@ -54,6 +54,49 @@ test("insights response validation rejects transport payloads and API errors", (
   })), true)
 })
 
+test("search includes commodity futures while excluding options", () => {
+  const raw = JSON.stringify({
+    quotes: [
+      {
+        symbol: "SI=F",
+        shortname: "Silver Futures",
+        quoteType: "FUTURE",
+        exchange: "CMX",
+        exchDisp: "New York Commodity Exchange"
+      },
+      {
+        symbol: "AAPL",
+        shortname: "Apple Inc.",
+        quoteType: "EQUITY",
+        exchange: "NMS",
+        exchDisp: "NasdaqGS"
+      },
+      {
+        symbol: "AAPL260918C00200000",
+        shortname: "AAPL Call",
+        quoteType: "OPTION",
+        exchange: "OPR",
+        exchDisp: "Options"
+      }
+    ]
+  })
+
+  assert.deepEqual(Model.parseSearch(raw), [
+    {
+      symbol: "SI=F",
+      name: "Silver Futures",
+      type: "FUTURE",
+      exchange: "New York Commodity Exchange"
+    },
+    {
+      symbol: "AAPL",
+      name: "Apple Inc.",
+      type: "EQUITY",
+      exchange: "NasdaqGS"
+    }
+  ])
+})
+
 test("chart parser does not turn missing quote fields into zero", () => {
   const raw = JSON.stringify({
     chart: {
@@ -114,6 +157,12 @@ test("bar fields can be shown independently", () => {
   assert.equal(Model.barLabelTone(quote, false, false, false), "flat")
   assert.equal(Model.barLabelTone(null, true, true, true), "flat")
   assert.equal(Model.barLabelTone({ change: -2.94, changePercent: null }, true, false, false, "dollars"), "down")
+})
+
+test("detail quote refresh targets only the active symbol", () => {
+  assert.deepEqual(Model.quoteSymbolsForView(["AAPL", "MSFT"], " nvda ", "detail"), ["NVDA"])
+  assert.deepEqual(Model.quoteSymbolsForView(["AAPL", "MSFT"], "NVDA", "list"), ["AAPL", "MSFT"])
+  assert.deepEqual(Model.quoteSymbolsForView(["AAPL"], "", "detail"), ["AAPL"])
 })
 
 test("state parsing normalizes symbols and removes invalid pins", () => {

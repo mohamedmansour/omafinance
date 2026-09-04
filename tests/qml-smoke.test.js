@@ -63,6 +63,13 @@ test("background quote refreshes do not show updating status", () => {
   assert.match(panel, /return showLastUpdated && chartUpdatedAt > 0 && detailQuote \? "Last updated "/)
 })
 
+test("quote refresh uses symbols selected for the active view", () => {
+  const panel = fs.readFileSync(path.join(root, "Panel.qml"), "utf8")
+
+  assert.match(panel, /quoteSymbolsForView\(watchlist, detailSymbol, view\)/)
+  assert.match(panel, /Model\.sparkUrl\(quoteSymbols\)/)
+})
+
 test("detail loading is a delayed icon beside the ticker", () => {
   const panel = fs.readFileSync(path.join(root, "Panel.qml"), "utf8")
   const detail = fs.readFileSync(path.join(root, "FinanceDetailView.qml"), "utf8")

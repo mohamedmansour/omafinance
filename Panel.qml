@@ -103,6 +103,7 @@ Panel {
         return "right";
     }
     readonly property string barSymbol: Model.barSymbol(pinned, watchlist, pinIndex)
+    readonly property var quoteSymbols: Model.quoteSymbolsForView(watchlist, detailSymbol, view)
     readonly property var pinnedQuote: quotes[barSymbol] || null
     readonly property string label: Model.barLabel(barSymbol, pinnedQuote, false, showTicker, showPrice, showChange, changeStyle)
     readonly property string verticalLabel: Model.barLabel(barSymbol, pinnedQuote, true, showTicker, showPrice, showChange, changeStyle)
@@ -416,7 +417,7 @@ Panel {
     }
 
     function refresh() {
-        if (watchlist.length === 0) {
+        if (quoteSymbols.length === 0) {
             quoteRefreshPending = false;
             return;
         }
@@ -425,7 +426,7 @@ Panel {
             return;
         }
         quoteRefreshPending = false;
-        quoteProc.command = ["curl", "-fsS", "--max-time", "8", "-A", "Mozilla/5.0", Model.sparkUrl(watchlist)];
+        quoteProc.command = ["curl", "-fsS", "--max-time", "8", "-A", "Mozilla/5.0", Model.sparkUrl(quoteSymbols)];
         quoteProc.running = true;
     }
 
