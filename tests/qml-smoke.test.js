@@ -129,6 +129,16 @@ test("watchlist pointer-down prefetches details without duplicating the click fe
   assert.match(panel, /function openDetail\(symbol\)\s*\{\s*if \(!prepareDetail\(symbol\)\)/)
 })
 
+test("watchlist virtualizes a capped set of reusable rows", () => {
+  const list = fs.readFileSync(path.join(root, "FinanceListView.qml"), "utf8")
+
+  assert.match(list, /ListView\s*\{\s*id:\s*watchlistRows/)
+  assert.match(list, /height:\s*Math\.min\(controller\.watchlist\.length, 8\) \* controller\.rowHeight/)
+  assert.match(list, /reuseItems:\s*true/)
+  assert.match(list, /cacheBuffer:\s*controller\.rowHeight/)
+  assert.match(list, /positionViewAtIndex\(currentIndex, ListView\.Contain\)/)
+})
+
 test("detail price changes use tone-colored text without pill backgrounds", () => {
   const detail = fs.readFileSync(path.join(root, "FinanceDetailView.qml"), "utf8")
   const price = detail.indexOf("price: controller.activeQuote ? controller.detailMainPrice")

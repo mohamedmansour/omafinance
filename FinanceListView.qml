@@ -168,13 +168,27 @@ Column {
         spacing: 0
         visible: !(controller.searching && controller.searchQuery.length > 0)
 
-        Repeater {
+        ListView {
+            id: watchlistRows
+            width: parent.width
+            height: Math.min(controller.watchlist.length, 8) * controller.rowHeight
             model: controller.watchlist
+            currentIndex: controller.selectedIndex
+            clip: true
+            reuseItems: true
+            cacheBuffer: controller.rowHeight
+            boundsBehavior: Flickable.StopAtBounds
+            interactive: contentHeight > height
 
-            Item {
+            onCurrentIndexChanged: {
+                if (currentIndex >= 0)
+                    positionViewAtIndex(currentIndex, ListView.Contain);
+            }
+
+            delegate: Item {
                 required property int index
                 required property var modelData
-                width: parent ? parent.width : 0
+                width: ListView.view.width
                 height: controller.rowHeight
 
                 readonly property string symbol: String(modelData)
