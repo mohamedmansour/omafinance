@@ -139,6 +139,19 @@ test("watchlist virtualizes a capped set of reusable rows", () => {
   assert.match(list, /positionViewAtIndex\(currentIndex, ListView\.Contain\)/)
 })
 
+test("sparklines cache normalized geometry for paint and hover", () => {
+  const sparkline = fs.readFileSync(path.join(root, "Sparkline.qml"), "utf8")
+
+  assert.match(sparkline, /property var cachedGeometry:\s*null/)
+  assert.match(sparkline, /function refreshGeometry\(\)/)
+  assert.match(sparkline, /geometry\.xs\.push\(xAt\(geometry, i\)\)/)
+  assert.match(sparkline, /geometry\.ys\.push\(yAt\(geometry, nums\[i\]\)\)/)
+  assert.match(sparkline, /function updateHover\(px\)\s*\{\s*var g = cachedGeometry/)
+  assert.match(sparkline, /var g = root\.cachedGeometry/)
+  assert.match(sparkline, /onValuesChanged:\s*refreshGeometry\(\)/)
+  assert.match(sparkline, /onPadChanged:\s*refreshGeometry\(\)/)
+})
+
 test("detail price changes use tone-colored text without pill backgrounds", () => {
   const detail = fs.readFileSync(path.join(root, "FinanceDetailView.qml"), "utf8")
   const price = detail.indexOf("price: controller.activeQuote ? controller.detailMainPrice")

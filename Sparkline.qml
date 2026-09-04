@@ -22,6 +22,8 @@ Item {
   property real hoverValue: Number.NaN
   property real hoverX: 0
   property real hoverY: 0
+  property real hoverPointerX: 0
+  property var cachedGeometry: null
 
   function numericValues() {
     var vals = root.values || []
@@ -57,7 +59,12 @@ Item {
       drawZero: false,
       zero: 0
     }
-    if (nums.length === 0) return unset
+    if (nums.length === 0) {
+      unset.xs = []
+      unset.ys = []
+      unset.zeroY = Number.NaN
+      return unset
+    }
 
     var min = nums[0]
     var max = nums[0]
@@ -77,7 +84,7 @@ Item {
     min -= span * 0.08
     max += span * 0.08
     span = max - min
-    return {
+    var geometry = {
       nums: nums,
       min: min,
       max: max,
@@ -91,6 +98,20 @@ Item {
       drawZero: drawZero,
       zero: zero
     }
+    geometry.xs = []
+    geometry.ys = []
+    for (i = 0; i < nums.length; i++) {
+      geometry.xs.push(xAt(geometry, i))
+      geometry.ys.push(yAt(geometry, nums[i]))
+    }
+    geometry.zeroY = drawZero ? yAt(geometry, zero) : Number.NaN
+    return geometry
+  }
+
+  function refreshGeometry() {
+    cachedGeometry = buildGeom()
+    canvas.requestPaint()
+    if (hovering) updateHover(hoverPointerX)
   }
 
   function xAt(g, idx) {
@@ -103,7 +124,9 @@ Item {
   }
 
   function updateHover(px) {
-    var g = buildGeom()
+    var g = cachedGeometry
+    hoverPointerX = px
+    if (!g) return
     if (g.nums.length === 0) {
       clearHover()
       return
@@ -114,8 +137,8 @@ Item {
     var idx = Math.round(t * Math.max(0, g.nums.length - 1))
     hoverIndex = idx
     hoverValue = g.nums[idx]
-    hoverX = xAt(g, idx)
-    hoverY = yAt(g, g.nums[idx])
+    hoverX = g.xs[idx]
+    hoverY = g.ys[idx]
     hovering = true
   }
 
@@ -136,7 +159,8 @@ Item {
       var h = height
       ctx.clearRect(0, 0, w, h)
 
-      var g = root.buildGeom()
+      var g = root.cachedGeometry
+      if (!g) return
       ctx.lineWidth = 1.5
       ctx.lineJoin = "round"
       ctx.lineCap = "round"
@@ -153,15 +177,14 @@ Item {
       }
 
       if (g.drawZero) {
-        var yZero = root.yAt(g, g.zero)
         ctx.save()
         ctx.lineWidth = 1
         ctx.globalAlpha = 0.55
         ctx.strokeStyle = root.zeroLineColor
         if (ctx.setLineDash) ctx.setLineDash([2, 3])
         ctx.beginPath()
-        ctx.moveTo(g.left, yZero)
-        ctx.lineTo(g.right, yZero)
+        ctx.moveTo(g.left, g.zeroY)
+        ctx.lineTo(g.right, g.zeroY)
         ctx.stroke()
         ctx.restore()
       }
@@ -169,31 +192,33 @@ Item {
       var i
       if (root.filled) {
         ctx.beginPath()
-        ctx.moveTo(root.xAt(g, 0), root.yAt(g, g.nums[0]))
-        for (i = 1; i < g.nums.length; i++) ctx.lineTo(root.xAt(g, i), root.yAt(g, g.nums[i]))
-        ctx.lineTo(root.xAt(g, g.nums.length - 1), g.bot)
-        ctx.lineTo(root.xAt(g, 0), g.bot)
+        ctx.moveTo(g.xs[0], g.ys[0])
+        for (i = 1; i < g.nums.length; i++) ctx.lineTo(g.xs[i], g.ys[i])
+        ctx.lineTo(g.xs[g.nums.length - 1], g.bot)
+        ctx.lineTo(g.xs[0], g.bot)
         ctx.closePath()
         ctx.fillStyle = root.fillColor
         ctx.fill()
       }
 
       ctx.beginPath()
-      ctx.moveTo(root.xAt(g, 0), root.yAt(g, g.nums[0]))
-      for (i = 1; i < g.nums.length; i++) ctx.lineTo(root.xAt(g, i), root.yAt(g, g.nums[i]))
+      ctx.moveTo(g.xs[0], g.ys[0])
+      for (i = 1; i < g.nums.length; i++) ctx.lineTo(g.xs[i], g.ys[i])
       ctx.strokeStyle = root.lineColor
       ctx.stroke()
     }
   }
 
-  onValuesChanged: { canvas.requestPaint(); if (hovering) updateHover(hoverX) }
+  Component.onCompleted: refreshGeometry()
+  onValuesChanged: refreshGeometry()
   onLineColorChanged: canvas.requestPaint()
   onFillColorChanged: canvas.requestPaint()
   onZeroLineColorChanged: canvas.requestPaint()
-  onZeroValueChanged: canvas.requestPaint()
-  onShowZeroLineChanged: canvas.requestPaint()
-  onWidthChanged: canvas.requestPaint()
-  onHeightChanged: canvas.requestPaint()
+  onZeroValueChanged: refreshGeometry()
+  onShowZeroLineChanged: refreshGeometry()
+  onPadChanged: refreshGeometry()
+  onWidthChanged: refreshGeometry()
+  onHeightChanged: refreshGeometry()
   onFilledChanged: canvas.requestPaint()
 
   MouseArea {
