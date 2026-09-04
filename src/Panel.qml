@@ -84,7 +84,7 @@ Panel {
     readonly property bool showChange: setting("showChange", legacyShowOnBar) !== false
     readonly property bool showLastUpdated: setting("showLastUpdated", false) === true
     readonly property bool showBarData: showTicker || showPrice || showChange
-    readonly property bool showBarQuote: showBarData
+    readonly property bool showBarQuote: showPrice || showChange
     readonly property int changeStyleSettingsIndex: 3
     readonly property int refreshSettingsIndex: showChange ? 4 : 3
     readonly property int lastUpdatedSettingsIndex: showChange ? 5 : 4
@@ -342,8 +342,6 @@ Panel {
         persistSettings({
             showTicker: !!enabled
         });
-        if (enabled)
-            scheduleBarRefresh();
     }
 
     function setShowPrice(enabled) {
@@ -412,7 +410,7 @@ Panel {
         if (state.detailRange)
             detailRange = state.detailRange;
         clampSelected();
-        if (before !== after)
+        if (before !== after && (opened || showBarQuote))
             Qt.callLater(refresh);
     }
 
@@ -436,7 +434,7 @@ Panel {
 
     function scheduleBarRefresh() {
         Qt.callLater(function () {
-            if (root.showBarData && !quoteProc.running)
+            if (root.showBarQuote && !quoteProc.running)
                 root.refresh();
         });
     }

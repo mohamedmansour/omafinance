@@ -39,8 +39,20 @@ test("panel presents before scheduling one non-blocking open refresh", () => {
   assert.match(panel, /function open\(\)[\s\S]*?root\.controller\.show\(\);\s*scheduleOpenRefresh\(\);/)
   assert.match(panel, /function toggle\(\)[\s\S]*?else\s*root\.open\(\);/)
   assert.match(panel, /function scheduleOpenRefresh\(\)\s*\{\s*openRefreshTimer\.restart\(\);?\s*\}/)
-  assert.match(panel, /function scheduleBarRefresh\(\)[\s\S]*?root\.showBarData && !quoteProc\.running/)
+  assert.match(panel, /function scheduleBarRefresh\(\)[\s\S]*?root\.showBarQuote && !quoteProc\.running/)
   assert.doesNotMatch(panel, /triggeredOnStart:\s*true/)
+})
+
+test("ticker-only bar mode suspends background quote requests", () => {
+  const panel = fs.readFileSync(source("Panel.qml"), "utf8")
+  const tickerSetter = panel.match(/function setShowTicker\(enabled\)\s*\{[\s\S]*?\n    \}/)
+
+  assert.match(panel, /readonly property bool showBarData:\s*showTicker \|\| showPrice \|\| showChange/)
+  assert.match(panel, /readonly property bool showBarQuote:\s*showPrice \|\| showChange/)
+  assert.match(panel, /id:\s*refreshTimer[\s\S]*?running:\s*root\.showBarQuote && !root\.opened/)
+  assert.match(panel, /before !== after && \(opened \|\| showBarQuote\)/)
+  assert.ok(tickerSetter)
+  assert.doesNotMatch(tickerSetter[0], /scheduleBarRefresh/)
 })
 
 test("search renders immediately, uses a short debounce, and caches results", () => {
