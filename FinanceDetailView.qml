@@ -198,13 +198,16 @@ Column {
             Column {
                 spacing: Style.space(2)
 
-                Text {
-                    textFormat: Text.PlainText
-                    text: controller.activeQuote ? Model.formatPrice(controller.detailMainPrice, controller.activeQuote.currency, controller.activeQuote.priceHint) : "-"
-                    color: controller.contentForeground
-                    font.family: controller.contentFontFamily
-                    font.pixelSize: Style.font.display
-                    font.bold: true
+                PriceRoll {
+                    price: controller.activeQuote ? controller.detailMainPrice : null
+                    currency: controller.activeQuote ? controller.activeQuote.currency : "USD"
+                    priceHint: controller.activeQuote ? controller.activeQuote.priceHint : 2
+                    neutralColor: controller.contentForeground
+                    upColor: controller.upColor
+                    downColor: controller.downColor
+                    fontFamily: controller.contentFontFamily
+                    fontSize: Style.font.display
+                    active: controller.opened && controller.view === "detail"
                 }
 
                 Text {
@@ -235,13 +238,16 @@ Column {
             Column {
                 spacing: Style.space(2)
 
-                Text {
-                    textFormat: Text.PlainText
-                    text: controller.sessionQuote ? Model.formatPrice(controller.sessionQuote.extendedPrice, controller.sessionQuote.currency, controller.sessionQuote.priceHint) : "-"
-                    color: controller.contentForeground
-                    font.family: controller.contentFontFamily
-                    font.pixelSize: Style.font.display
-                    font.bold: true
+                PriceRoll {
+                    price: controller.sessionQuote ? controller.sessionQuote.extendedPrice : null
+                    currency: controller.sessionQuote ? controller.sessionQuote.currency : "USD"
+                    priceHint: controller.sessionQuote ? controller.sessionQuote.priceHint : 2
+                    neutralColor: controller.contentForeground
+                    upColor: controller.upColor
+                    downColor: controller.downColor
+                    fontFamily: controller.contentFontFamily
+                    fontSize: Style.font.display
+                    active: controller.opened && controller.view === "detail"
                 }
 
                 Text {

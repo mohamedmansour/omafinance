@@ -11,7 +11,8 @@ const qmlFiles = [
   "Sparkline.qml",
   "FinanceListView.qml",
   "FinanceSettingsView.qml",
-  "FinanceDetailView.qml"
+  "FinanceDetailView.qml",
+  "PriceRoll.qml"
 ]
 
 test("all plugin QML files parse with qmlformat", () => {
@@ -76,7 +77,7 @@ test("detail header stacks small ticker, company name, then price", () => {
   const detail = fs.readFileSync(path.join(root, "FinanceDetailView.qml"), "utf8")
   const ticker = detail.indexOf("id: tickerLabel")
   const company = detail.indexOf("id: companyName")
-  const price = detail.indexOf("Model.formatPrice(controller.detailMainPrice")
+  const price = detail.indexOf("price: controller.activeQuote ? controller.detailMainPrice")
 
   assert.notEqual(ticker, -1)
   assert.notEqual(company, -1)
@@ -99,13 +100,25 @@ test("watchlist pointer-down prefetches details without duplicating the click fe
 
 test("detail price changes use tone-colored text without pill backgrounds", () => {
   const detail = fs.readFileSync(path.join(root, "FinanceDetailView.qml"), "utf8")
-  const price = detail.indexOf("Model.formatPrice(controller.detailMainPrice")
+  const price = detail.indexOf("price: controller.activeQuote ? controller.detailMainPrice")
   const change = detail.indexOf("id: detailChange")
 
   assert.doesNotMatch(detail, /pillFill\(/)
   assert.ok(price < change)
   assert.match(detail, /id:\s*detailChange[\s\S]*?color:\s*controller\.toneColor\(controller\.shownMainChange\)/)
   assert.match(detail, /id:\s*extChange[\s\S]*?color:\s*controller\.toneColor\(controller\.sessionQuote \? controller\.sessionQuote\.extendedChangePercent : null\)/)
+})
+
+test("only changed detail price digits roll in their direction color", () => {
+  const detail = fs.readFileSync(path.join(root, "FinanceDetailView.qml"), "utf8")
+  const roll = fs.readFileSync(path.join(root, "PriceRoll.qml"), "utf8")
+
+  assert.equal((detail.match(/\bPriceRoll\s*\{/g) || []).length, 2)
+  assert.match(detail, /active:\s*controller\.opened && controller\.view === "detail"/)
+  assert.match(roll, /rollDirection = next > lastPrice \? 1 : -1/)
+  assert.match(roll, /changed: oldCharacter !== newCharacter/)
+  assert.match(roll, /modelData\.changed && root\.animating \? root\.activeColor : root\.neutralColor/)
+  assert.match(roll, /NumberAnimation[\s\S]*?property:\s*"rollProgress"[\s\S]*?Easing\.OutCubic/)
 })
 
 test("change style follows the show-change setting and precedes refresh", () => {
