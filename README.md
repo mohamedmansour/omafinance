@@ -87,10 +87,11 @@ Quotes are fetched with `curl` from Yahoo Finance. Nothing is sent to this proje
 
 ## Tests
 
-The data model uses Node's built-in test runner and has no development dependencies:
+The data model and QML smoke tests use Node's built-in test runner and have no development dependencies:
 
 ```bash
-node --test tests/model.test.js
+node --test tests/*.test.js
+omarchy plugin validate .
 ```
 
 ## License

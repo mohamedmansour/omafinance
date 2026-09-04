@@ -655,6 +655,15 @@ function parseInsights(raw) {
   }
 }
 
+function isInsightsResponse(raw) {
+  try {
+    var data = JSON.parse(String(raw || "{}"))
+    return !!(data.finance && data.finance.error == null && data.finance.result)
+  } catch (e) {
+    return false
+  }
+}
+
 function formatIsoDate(iso) {
   var text = String(iso || "")
   var parts = text.split("-")
@@ -779,6 +788,7 @@ if (typeof module !== "undefined") {
     quotePageUrl: quotePageUrl,
     parseQuotePage: parseQuotePage,
     parseInsights: parseInsights,
+    isInsightsResponse: isInsightsResponse,
     formatIsoDate: formatIsoDate,
     buildDetailStats: buildDetailStats
   }

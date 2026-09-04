@@ -27,6 +27,17 @@ test("retry delay backs off exponentially and respects its ceiling", () => {
   assert.equal(Model.backoffDelay(5000, 20, 60000), 60000)
 })
 
+test("insights response validation rejects transport payloads and API errors", () => {
+  assert.equal(Model.isInsightsResponse(""), false)
+  assert.equal(Model.isInsightsResponse("not json"), false)
+  assert.equal(Model.isInsightsResponse(JSON.stringify({
+    finance: { result: null, error: { code: "Unavailable" } }
+  })), false)
+  assert.equal(Model.isInsightsResponse(JSON.stringify({
+    finance: { result: { recommendation: {} }, error: null }
+  })), true)
+})
+
 test("chart parser does not turn missing quote fields into zero", () => {
   const raw = JSON.stringify({
     chart: {
@@ -74,12 +85,13 @@ test("chart parser calculates change when Yahoo omits the percentage", () => {
 })
 
 test("bar fields can be shown independently", () => {
-  const quote = { price: 241.6, currency: "USD", priceHint: 2, changePercent: 1.234 }
+  const quote = { price: 241.6, currency: "USD", priceHint: 2, change: 2.94, changePercent: 1.234 }
   assert.equal(Model.barLabel("AAPL", quote, false, true, true, true), "AAPL  $241.60  +1.23%")
   assert.equal(Model.barLabel("AAPL", quote, false, false, true, true), "$241.60  +1.23%")
   assert.equal(Model.barLabel("AAPL", quote, false, true, false, true), "AAPL  +1.23%")
   assert.equal(Model.barLabel("AAPL", quote, false, true, true, false), "AAPL  $241.60")
   assert.equal(Model.barLabel("AAPL", quote, false, false, false, false), "$")
+  assert.equal(Model.barLabel("AAPL", quote, false, true, true, true, "dollars"), "AAPL  $241.60  +$2.94")
 })
 
 test("state parsing normalizes symbols and removes invalid pins", () => {
