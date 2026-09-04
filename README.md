@@ -8,7 +8,7 @@
 
 ## Features
 
-- **Bar pill** - pinned ticker(s) and % change, on the right of the bar
+- **Bar pill** - pinned ticker(s), current price, and % change in bold, on the right of the bar
 - **After hours** - watchlist uses the latest pre/post print; 1D detail shows After Hours next to the close
 - **Watchlist** - symbol, name, sparkline, price, and change pill
 - **Search** - look up a ticker, open it, then Favorite to keep it
@@ -26,7 +26,7 @@ No API key. Quotes come from Yahoo Finance.
 omarchy plugin add https://github.com/mohamedmansour/omafinance.git --enable
 ```
 
-Omafinance lands on the right of the bar (next to network / audio). A gear in the panel opens settings: show or hide the live ticker, and background refresh. While the panel is open, quotes refresh every second.
+Omafinance lands on the right of the bar (next to network / audio). A gear in the panel opens settings: independently show or hide the ticker symbol, price, and percentage change, and configure background refresh. While the panel is open, quotes refresh every two seconds and the active 1D chart every fifteen seconds. Failed requests back off automatically.
 
 ## Update
 
@@ -84,6 +84,15 @@ Watchlist, pinned tickers, and chart range:
 ```
 
 Quotes are fetched with `curl` from Yahoo Finance. Nothing is sent to this project’s servers.
+
+## Tests
+
+The data model and QML smoke tests use Node's built-in test runner and have no development dependencies:
+
+```bash
+node --test tests/*.test.js
+omarchy plugin validate .
+```
 
 ## License
 
