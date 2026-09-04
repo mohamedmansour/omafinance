@@ -108,6 +108,8 @@ Panel {
     root.refresh()
     root.view = "list"
     root.clearSearch()
+    root.cursorActive = root.watchlist.length > 0
+    root.selectedIndex = 0
   }
 
   function openFromHotkey() {
@@ -116,7 +118,8 @@ Panel {
     stateFile.reload()
     root.refresh()
     root.view = "list"
-    root.clearSearch()
+    root.cursorActive = false
+    root.startSearch("")
     Qt.callLater(function() {
       if (root.opened) setCenterHoverRevealSuppressed(true)
     })
@@ -887,14 +890,30 @@ Panel {
                 }
               }
 
-              Text {
+              Column {
                 visible: root.watchlist.length === 0
-                text: "Search to add a ticker"
-                color: root.dim
-                font.family: root.contentFontFamily
-                font.pixelSize: Style.font.body
-                leftPadding: Style.space(4)
-                topPadding: Style.space(8)
+                width: parent.width
+                spacing: Style.space(8)
+                topPadding: Style.space(36)
+
+                Text {
+                  width: parent.width
+                  horizontalAlignment: Text.AlignHCenter
+                  text: "No favorites yet"
+                  color: root.contentForeground
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.title
+                  font.bold: true
+                }
+                Text {
+                  width: parent.width
+                  horizontalAlignment: Text.AlignHCenter
+                  wrapMode: Text.WordWrap
+                  text: "Search for a ticker, then Favorite it to add it to your watchlist."
+                  color: root.dim
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.body
+                }
               }
             }
           }

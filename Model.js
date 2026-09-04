@@ -1,9 +1,9 @@
 function defaultWatchlist() {
-  return ["AAPL", "MSFT", "NVDA", "BTC-USD", "ETH-USD"]
+  return []
 }
 
 function defaultPinned() {
-  return ["AAPL"]
+  return []
 }
 
 function defaultDetailRange() {
@@ -38,8 +38,6 @@ function parseState(raw) {
       seen[symbol] = true
       list.push(symbol)
     }
-    if (list.length === 0) list = fallback.watchlist.slice()
-
     return {
       watchlist: list,
       pinned: parsePinned(data.pinned, list),
@@ -51,7 +49,7 @@ function parseState(raw) {
 }
 
 function serializeState(watchlist, pinned, detailRange) {
-  var list = Array.isArray(watchlist) ? watchlist.slice() : defaultWatchlist().slice()
+  var list = Array.isArray(watchlist) ? watchlist.slice() : []
   return JSON.stringify({
     watchlist: list,
     pinned: parsePinned(pinned, list),
@@ -444,7 +442,7 @@ function changeTone(pct) {
 
 function barLabel(pinned, quote, vertical) {
   var symbol = normalizeSymbol(pinned)
-  if (!symbol) return "—"
+  if (!symbol) return "$"
   var pct = quote ? formatPercent(quote.changePercent) : ""
   if (!pct || pct === "—") return symbol
   return vertical ? (symbol + "\n" + pct) : (symbol + "  " + pct)
