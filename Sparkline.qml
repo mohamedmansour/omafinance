@@ -28,6 +28,7 @@ Item {
     var nums = []
     var i
     for (i = 0; i < vals.length; i++) {
+      if (vals[i] === null || vals[i] === undefined || vals[i] === "") continue
       var n = Number(vals[i])
       if (isFinite(n)) nums.push(n)
     }

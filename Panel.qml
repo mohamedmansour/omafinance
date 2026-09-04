@@ -26,7 +26,11 @@ Panel {
   property string detailSymbol: ""
   property string detailRange: "1D"
   property var detailQuote: null
+  property string chartFetchSymbol: ""
   property string chartFetchRange: ""
+  property string insightsFetchSymbol: ""
+  property string quotePageFetchSymbol: ""
+  property bool quoteRefreshPending: false
   property var detailPage: ({})
   property var detailInsights: ({})
   property string searchQuery: ""
@@ -279,8 +283,15 @@ Panel {
   }
 
   function refresh() {
-    if (watchlist.length === 0) return
-    if (quoteProc.running) return
+    if (watchlist.length === 0) {
+      quoteRefreshPending = false
+      return
+    }
+    if (quoteProc.running) {
+      quoteRefreshPending = true
+      return
+    }
+    quoteRefreshPending = false
     quoteProc.command = ["curl", "-fsS", "--max-time", "8", "-A", "Mozilla/5.0", Model.sparkUrl(watchlist)]
     quoteProc.running = true
   }
@@ -355,38 +366,38 @@ Panel {
     detailRange = next
     persist()
     if (!detailSymbol) return
-    startChartFetch(true)
+    startChartFetch()
   }
 
-  function startChartFetch(force) {
+  function startChartFetch() {
     if (!detailSymbol) return
-    if (chartProc.running) {
-      if (!force) return
-      chartProc.running = false
-    }
+    if (chartProc.running) return
+    chartFetchSymbol = detailSymbol
     chartFetchRange = detailRange
-    chartProc.command = ["curl", "-fsS", "--max-time", "8", "-A", "Mozilla/5.0", Model.chartUrl(detailSymbol, chartFetchRange)]
+    chartProc.command = ["curl", "-fsS", "--max-time", "8", "-A", "Mozilla/5.0", Model.chartUrl(chartFetchSymbol, chartFetchRange)]
     chartProc.running = true
   }
 
   function fetchDetail() {
     if (!detailSymbol) return
-    startChartFetch(true)
+    startChartFetch()
     fetchInsights()
     fetchQuotePage()
   }
 
   function fetchInsights() {
     if (!detailSymbol) return
-    if (insightsProc.running) insightsProc.running = false
-    insightsProc.command = ["curl", "-fsS", "--max-time", "8", "-A", "Mozilla/5.0", Model.insightsUrl(detailSymbol)]
+    if (insightsProc.running) return
+    insightsFetchSymbol = detailSymbol
+    insightsProc.command = ["curl", "-fsS", "--max-time", "8", "-A", "Mozilla/5.0", Model.insightsUrl(insightsFetchSymbol)]
     insightsProc.running = true
   }
 
   function fetchQuotePage() {
     if (!detailSymbol) return
-    if (quotePageProc.running) quotePageProc.running = false
-    quotePageProc.command = ["curl", "-fsS", "--compressed", "--max-time", "12", "-A", "Mozilla/5.0", Model.quotePageUrl(detailSymbol)]
+    if (quotePageProc.running) return
+    quotePageFetchSymbol = detailSymbol
+    quotePageProc.command = ["curl", "-fsS", "--compressed", "--max-time", "12", "-A", "Mozilla/5.0", Model.quotePageUrl(quotePageFetchSymbol)]
     quotePageProc.running = true
   }
 
@@ -604,6 +615,9 @@ Panel {
 
   Process {
     id: quoteProc
+    onExited: {
+      if (root.quoteRefreshPending) Qt.callLater(root.refresh)
+    }
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
@@ -629,11 +643,16 @@ Panel {
 
   Process {
     id: chartProc
+    onExited: {
+      if (root.detailSymbol
+          && (root.chartFetchSymbol !== root.detailSymbol || root.chartFetchRange !== root.detailRange))
+        Qt.callLater(root.startChartFetch)
+    }
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
         var parsed = Model.parseChart(text)
-        if (!parsed || parsed.symbol !== root.detailSymbol) return
+        if (!parsed || root.chartFetchSymbol !== root.detailSymbol || parsed.symbol !== root.detailSymbol) return
         if (root.chartFetchRange !== root.detailRange) return
         var expected = Model.chartSpec(root.detailRange).range
         if (parsed.yahooRange && parsed.yahooRange !== expected) return
@@ -645,10 +664,14 @@ Panel {
 
   Process {
     id: insightsProc
+    onExited: {
+      if (root.detailSymbol && root.insightsFetchSymbol !== root.detailSymbol)
+        Qt.callLater(root.fetchInsights)
+    }
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
-        if (!root.detailSymbol) return
+        if (!root.detailSymbol || root.insightsFetchSymbol !== root.detailSymbol) return
         root.detailInsights = Model.parseInsights(text)
       }
     }
@@ -656,10 +679,14 @@ Panel {
 
   Process {
     id: quotePageProc
+    onExited: {
+      if (root.detailSymbol && root.quotePageFetchSymbol !== root.detailSymbol)
+        Qt.callLater(root.fetchQuotePage)
+    }
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
-        if (!root.detailSymbol) return
+        if (!root.detailSymbol || root.quotePageFetchSymbol !== root.detailSymbol) return
         root.detailPage = Model.parseQuotePage(text)
       }
     }
@@ -689,7 +716,7 @@ Panel {
     onTriggered: {
       root.refresh()
       if (root.view === "detail" && root.detailRange === "1D")
-        root.startChartFetch(false)
+        root.startChartFetch()
     }
   }
 

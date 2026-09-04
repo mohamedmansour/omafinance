@@ -85,6 +85,14 @@ Watchlist, pinned tickers, and chart range:
 
 Quotes are fetched with `curl` from Yahoo Finance. Nothing is sent to this project’s servers.
 
+## Tests
+
+The data model uses Node's built-in test runner and has no development dependencies:
+
+```bash
+node --test tests/model.test.js
+```
+
 ## License
 
 MIT

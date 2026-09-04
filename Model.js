@@ -19,6 +19,8 @@ function normalizeSymbol(value) {
 }
 
 function finiteOrNull(value) {
+  if (value === null || value === undefined) return null
+  if (typeof value === "string" && value.replace(/^\s+|\s+$/g, "") === "") return null
   var n = Number(value)
   return isFinite(n) ? n : null
 }
@@ -187,8 +189,8 @@ function rangeChangePercent(quote, rangeKey) {
   var nums = []
   var i
   for (i = 0; i < closes.length; i++) {
-    var n = Number(closes[i])
-    if (isFinite(n)) nums.push(n)
+    var n = finiteOrNull(closes[i])
+    if (n !== null) nums.push(n)
   }
   if (last === null && nums.length) last = nums[nums.length - 1]
   if (key === "1D") {
@@ -320,16 +322,14 @@ function quoteFromChart(result, fallbackSymbol) {
   if (!symbol) return null
 
   var regularPrice = finiteOrNull(meta.regularMarketPrice)
-  var prev = Number(meta.chartPreviousClose)
-  if (!isFinite(prev)) prev = Number(meta.previousClose)
-  var regularPct = Number(meta.regularMarketChangePercent)
-  if (!isFinite(regularPct) && regularPrice != null && isFinite(prev) && prev !== 0)
+  var prev = finiteOrNull(meta.chartPreviousClose)
+  if (prev === null) prev = finiteOrNull(meta.previousClose)
+  var regularPct = finiteOrNull(meta.regularMarketChangePercent)
+  if (regularPct === null && regularPrice != null && prev !== null && prev !== 0)
     regularPct = ((regularPrice - prev) / prev) * 100
-  if (!isFinite(regularPct)) regularPct = null
 
   var fullday = finiteOrNull(meta.fulldayPrice)
-  var fulldayPct = Number(meta.fulldayChangePercent)
-  if (!isFinite(fulldayPct)) fulldayPct = null
+  var fulldayPct = finiteOrNull(meta.fulldayChangePercent)
   var session = sessionFromMeta(meta)
   var hasPrePost = !!meta.hasPrePostMarketData
   var extendedPct = null
@@ -359,7 +359,7 @@ function quoteFromChart(result, fallbackSymbol) {
     name: String(meta.shortName || meta.longName || symbol),
     currency: String(meta.currency || "USD"),
     price: latest,
-    previousClose: isFinite(prev) ? prev : null,
+    previousClose: prev,
     change: latestChange,
     changePercent: latestPct,
     regularPrice: regularPrice,
@@ -444,8 +444,8 @@ function priceDecimals(price, hint) {
 }
 
 function formatPrice(price, currency, hint) {
-  var n = Number(price)
-  if (!isFinite(n)) return "-"
+  var n = finiteOrNull(price)
+  if (n === null) return "-"
   var body = withCommas(n.toFixed(priceDecimals(n, hint)))
   var code = String(currency || "USD")
   if (code === "USD") return "$" + body
@@ -453,8 +453,8 @@ function formatPrice(price, currency, hint) {
 }
 
 function formatPercent(pct) {
-  var n = Number(pct)
-  if (!isFinite(n)) return "-"
+  var n = finiteOrNull(pct)
+  if (n === null) return "-"
   var sign = n > 0 ? "+" : ""
   return sign + n.toFixed(2) + "%"
 }
@@ -495,8 +495,8 @@ function formatChangePair(pct, amount, price, currency, hint) {
 }
 
 function formatCompact(value) {
-  var n = Number(value)
-  if (!isFinite(n)) return "-"
+  var n = finiteOrNull(value)
+  if (n === null) return "-"
   var abs = Math.abs(n)
   if (abs >= 1e12) return (n / 1e12).toFixed(2) + "T"
   if (abs >= 1e9) return (n / 1e9).toFixed(2) + "B"
@@ -506,8 +506,8 @@ function formatCompact(value) {
 }
 
 function changeTone(pct) {
-  var n = Number(pct)
-  if (!isFinite(n) || n === 0) return "flat"
+  var n = finiteOrNull(pct)
+  if (n === null || n === 0) return "flat"
   return n > 0 ? "up" : "down"
 }
 
@@ -660,15 +660,15 @@ function formatIsoDate(iso) {
 }
 
 function yieldPercent(value) {
-  var n = Number(value)
-  if (!isFinite(n) || n === 0) return "-"
+  var n = finiteOrNull(value)
+  if (n === null || n === 0) return "-"
   if (n > 0 && n <= 1) n = n * 100
   return n.toFixed(2) + "%"
 }
 
 function formatRatio(value) {
-  var n = Number(value)
-  if (!isFinite(n)) return "-"
+  var n = finiteOrNull(value)
+  if (n === null) return "-"
   return n.toFixed(2)
 }
 
