@@ -45,6 +45,12 @@ Panel {
   readonly property color upFill: Qt.rgba(upColor.r, upColor.g, upColor.b, 1)
   readonly property color downFill: Qt.rgba(downColor.r, downColor.g, downColor.b, 1)
   readonly property int refreshSeconds: Math.max(15, parseInt(setting("refreshSeconds", 60), 10) || 60)
+  readonly property bool showOnBar: setting("showOnBar", true) !== false
+  readonly property string barSection: {
+    var s = String(setting("barSection", "right") || "right")
+    if (s === "left" || s === "center" || s === "right") return s
+    return "right"
+  }
   readonly property string barSymbol: Model.barSymbol(pinned, watchlist, pinIndex)
   readonly property var pinnedQuote: quotes[barSymbol] || null
   readonly property string label: Model.barLabel(barSymbol, pinnedQuote, false)
@@ -59,8 +65,32 @@ Panel {
   }
   readonly property var detailStats: Model.buildDetailStats(activeQuote, detailPage, detailInsights)
   readonly property var detailRangeChange: Model.rangeChangePercent(rangeChart, detailRange)
+  readonly property var sessionQuote: quotes[detailSymbol] || rangeChart || activeQuote
+  readonly property var detailMainPrice: {
+    if (detailRange === "1D" && sessionQuote && sessionQuote.regularPrice != null)
+      return sessionQuote.regularPrice
+    return activeQuote ? activeQuote.price : null
+  }
+  readonly property var detailMainChange: {
+    if (detailRange === "1D" && sessionQuote && sessionQuote.regularChangePercent != null)
+      return sessionQuote.regularChangePercent
+    return detailRangeChange
+  }
+  property var heldMainChange: null
+  readonly property var shownMainChange: {
+    var n = Number(detailMainChange)
+    if (detailMainChange != null && isFinite(n)) return detailMainChange
+    return heldMainChange
+  }
+  readonly property bool showExtended: detailRange === "1D" && sessionQuote && sessionQuote.hasExtended === true
+  readonly property string priceCaption: Model.rangeCaption(detailRange, sessionQuote)
   readonly property bool detailIsFavorite: Model.isFavorite(watchlist, detailSymbol)
   readonly property int rowHeight: Style.space(56)
+
+  onDetailMainChangeChanged: {
+    var n = Number(detailMainChange)
+    if (detailMainChange != null && isFinite(n)) heldMainChange = detailMainChange
+  }
 
   function open() {
     openedFromHotkey = false
@@ -134,6 +164,40 @@ Panel {
     stateFile.setText(Model.serializeState(watchlist, pinned, detailRange))
   }
 
+  function persistSettings(values) {
+    var entry = { id: root.moduleName }
+    var existing
+    for (existing in root.settings) if (existing !== "id") entry[existing] = root.settings[existing]
+    for (existing in values) entry[existing] = values[existing]
+    root.settings = entry
+    if (root.hostWidget && "settings" in root.hostWidget) root.hostWidget.settings = entry
+    if (root.bar && root.bar.shell && typeof root.bar.shell.updateEntryInline === "function")
+      root.bar.shell.updateEntryInline(root.moduleName, entry)
+  }
+
+  function setShowOnBar(enabled) {
+    persistSettings({ showOnBar: !!enabled })
+  }
+
+  function setRefreshSeconds(value) {
+    var n = Math.max(15, Math.min(3600, parseInt(value, 10) || 60))
+    persistSettings({ refreshSeconds: n })
+  }
+
+  function setBarSection(section) {
+    var next = String(section || "right")
+    if (next !== "left" && next !== "center" && next !== "right") return
+    if (next === root.barSection) return
+    persistSettings({ barSection: next })
+    barMoveProc.command = ["omarchy", "bar", "move", root.moduleName, "--section", next]
+    barMoveProc.running = true
+  }
+
+  function openSettings() {
+    root.clearSearch()
+    root.view = "settings"
+  }
+
   function applyState(raw) {
     var state = Model.parseState(raw)
     var before = (watchlist || []).join("\n")
@@ -198,6 +262,7 @@ Panel {
     var next = Model.normalizeSymbol(symbol)
     if (!next) return
     detailSymbol = next
+    heldMainChange = null
     detailQuote = null
     detailPage = ({})
     detailInsights = ({})
@@ -219,21 +284,23 @@ Panel {
     detailRange = next
     persist()
     if (!detailSymbol) return
-    detailQuote = null
-    startChartFetch()
+    startChartFetch(true)
   }
 
-  function startChartFetch() {
+  function startChartFetch(force) {
     if (!detailSymbol) return
+    if (chartProc.running) {
+      if (!force) return
+      chartProc.running = false
+    }
     chartFetchRange = detailRange
-    if (chartProc.running) chartProc.running = false
     chartProc.command = ["curl", "-fsS", "--max-time", "8", "-A", "Mozilla/5.0", Model.chartUrl(detailSymbol, chartFetchRange)]
     chartProc.running = true
   }
 
   function fetchDetail() {
     if (!detailSymbol) return
-    startChartFetch()
+    startChartFetch(true)
     fetchInsights()
     fetchQuotePage()
   }
@@ -355,6 +422,10 @@ Panel {
   Component.onCompleted: mkdirProc.running = true
 
   Process {
+    id: barMoveProc
+  }
+
+  Process {
     id: quoteProc
     stdout: StdioCollector {
       waitForEnd: true
@@ -424,16 +495,29 @@ Panel {
   Timer {
     id: refreshTimer
     interval: root.refreshSeconds * 1000
-    running: true
+    running: root.showOnBar && !root.opened
     repeat: true
     triggeredOnStart: true
     onTriggered: root.refresh()
   }
 
   Timer {
+    id: liveTimer
+    interval: 1000
+    running: root.opened
+    repeat: true
+    triggeredOnStart: true
+    onTriggered: {
+      root.refresh()
+      if (root.view === "detail" && root.detailRange === "1D")
+        root.startChartFetch(false)
+    }
+  }
+
+  Timer {
     id: pinRotateTimer
     interval: 5000
-    running: (root.pinned || []).length > 1
+    running: root.showOnBar && (root.pinned || []).length > 1
     repeat: true
     onTriggered: root.pinIndex = root.pinIndex + 1
   }
@@ -483,6 +567,7 @@ Panel {
       }
       onCloseRequested: {
         if (root.view === "detail") root.closeDetail()
+        else if (root.view === "settings") root.view = "list"
         else if (root.searching) root.clearSearch()
         else root.close()
       }
@@ -492,7 +577,7 @@ Panel {
       }
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onTextKey: function(t) {
-        if (root.view === "detail") return
+        if (root.view === "detail" || root.view === "settings") return
         if (t === "/" || t === "?") { root.startSearch(""); return }
         if (t === "p" || t === "P") {
           if (root.watchlist.length > 0) root.pinSymbol(root.watchlist[root.selectedIndex])
@@ -521,12 +606,18 @@ Panel {
             spacing: Style.space(10)
             visible: root.view === "list"
 
-            TextField {
-              id: searchField
+            Item {
               width: parent.width
-              placeholderText: "Search tickers…"
-              foreground: root.contentForeground
-              font.family: root.contentFontFamily
+              height: searchField.implicitHeight
+
+              TextField {
+                id: searchField
+                anchors.left: parent.left
+                anchors.right: gearBtn.left
+                anchors.rightMargin: Style.space(8)
+                placeholderText: "Search tickers…"
+                foreground: root.contentForeground
+                font.family: root.contentFontFamily
 
               onActiveFocusChanged: {
                 if (activeFocus) root.searching = true
@@ -550,6 +641,18 @@ Panel {
                   root.commitSearch()
                   event.accepted = true
                 }
+              }
+              }
+
+              PanelActionButton {
+                id: gearBtn
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                iconText: "\uf013"
+                tooltipText: "Settings"
+                foreground: root.dim
+                fontFamily: root.contentFontFamily
+                onClicked: root.openSettings()
               }
             }
 
@@ -788,6 +891,77 @@ Panel {
 
           Column {
             width: parent.width
+            spacing: Style.space(14)
+            visible: root.view === "settings"
+
+            Text {
+              text: "‹ Watchlist"
+              color: root.dim
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.body
+
+              MouseArea {
+                anchors.fill: parent
+                anchors.margins: -6
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.view = "list"
+              }
+            }
+
+            Text {
+              text: "Settings"
+              color: root.contentForeground
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.heading
+              font.bold: true
+            }
+
+            Toggle {
+              width: parent.width
+              label: "Show ticker on bar"
+              description: "When off, the bar shows a compact icon and quotes are fetched only while this panel is open."
+              checked: root.showOnBar
+              foreground: root.contentForeground
+              fontFamily: root.contentFontFamily
+              onClicked: root.setShowOnBar(!root.showOnBar)
+            }
+
+            NumberField {
+              width: parent.width
+              label: "Background refresh (seconds)"
+              value: root.refreshSeconds
+              from: 15
+              to: 3600
+              stepSize: 15
+              foreground: root.contentForeground
+              fontFamily: root.contentFontFamily
+              onModified: function(v) { root.setRefreshSeconds(v) }
+            }
+
+            Text {
+              text: "Bar position"
+              color: Qt.darker(root.contentForeground, 1.4)
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.bodySmall
+            }
+
+            ButtonGroup {
+              width: parent.width
+              foreground: root.contentForeground
+              fontFamily: root.contentFontFamily
+              fontSize: Style.font.bodySmall
+              value: root.barSection
+              options: [
+                { value: "left", label: "Left" },
+                { value: "center", label: "Center" },
+                { value: "right", label: "Right" }
+              ]
+              onChanged: function(v) { root.setBarSection(v) }
+            }
+          }
+
+          Column {
+            width: parent.width
             spacing: Style.space(12)
             visible: root.view === "detail"
 
@@ -875,33 +1049,96 @@ Panel {
             }
 
             Row {
-              spacing: Style.space(12)
+              width: parent.width
+              spacing: Style.space(16)
 
-              Text {
-                textFormat: Text.PlainText
-                text: root.activeQuote ? Model.formatPrice(root.activeQuote.price, root.activeQuote.currency, root.activeQuote.priceHint) : "—"
-                color: root.contentForeground
-                font.family: root.contentFontFamily
-                font.pixelSize: Style.font.display
-                font.bold: true
-              }
+              Column {
+                width: root.showExtended ? (parent.width - parent.spacing) / 2 : parent.width
+                spacing: Style.space(6)
 
-              Rectangle {
-                anchors.verticalCenter: parent.verticalCenter
-                radius: Style.space(6)
-                color: root.pillFill(root.detailRangeChange)
-                implicitWidth: detailChange.implicitWidth + Style.space(14)
-                implicitHeight: detailChange.implicitHeight + Style.space(6)
+                Row {
+                  spacing: Style.space(12)
+
+                  Text {
+                    textFormat: Text.PlainText
+                    text: root.activeQuote ? Model.formatPrice(root.detailMainPrice, root.activeQuote.currency, root.activeQuote.priceHint) : "—"
+                    color: root.contentForeground
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.display
+                    font.bold: true
+                  }
+
+                  Rectangle {
+                    anchors.verticalCenter: parent.verticalCenter
+                    radius: Style.space(6)
+                    color: root.pillFill(root.shownMainChange)
+                    implicitWidth: detailChange.implicitWidth + Style.space(14)
+                    implicitHeight: detailChange.implicitHeight + Style.space(6)
+
+                    Text {
+                      id: detailChange
+                      anchors.centerIn: parent
+                      textFormat: Text.PlainText
+                      text: Model.formatPercent(root.shownMainChange)
+                      color: root.contentForeground
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.font.body
+                      font.bold: true
+                    }
+                  }
+                }
 
                 Text {
-                  id: detailChange
-                  anchors.centerIn: parent
-                  textFormat: Text.PlainText
-                  text: Model.formatPercent(root.detailRangeChange)
-                  color: root.contentForeground
+                  visible: root.priceCaption !== ""
+                  text: root.priceCaption
+                  color: root.dim
                   font.family: root.contentFontFamily
-                  font.pixelSize: Style.font.body
-                  font.bold: true
+                  font.pixelSize: Style.font.bodySmall
+                }
+              }
+
+              Column {
+                visible: root.showExtended
+                width: (parent.width - parent.spacing) / 2
+                spacing: Style.space(6)
+
+                Row {
+                  spacing: Style.space(12)
+
+                  Text {
+                    textFormat: Text.PlainText
+                    text: root.sessionQuote ? Model.formatPrice(root.sessionQuote.extendedPrice, root.sessionQuote.currency, root.sessionQuote.priceHint) : "—"
+                    color: root.contentForeground
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.display
+                    font.bold: true
+                  }
+
+                  Rectangle {
+                    anchors.verticalCenter: parent.verticalCenter
+                    radius: Style.space(6)
+                    color: root.pillFill(root.sessionQuote ? root.sessionQuote.extendedChangePercent : null)
+                    implicitWidth: extChange.implicitWidth + Style.space(14)
+                    implicitHeight: extChange.implicitHeight + Style.space(6)
+
+                    Text {
+                      id: extChange
+                      anchors.centerIn: parent
+                      textFormat: Text.PlainText
+                      text: root.sessionQuote ? Model.formatPercent(root.sessionQuote.extendedChangePercent) : "—"
+                      color: root.contentForeground
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.font.body
+                      font.bold: true
+                    }
+                  }
+                }
+
+                Text {
+                  text: Model.extendedLabel(root.sessionQuote)
+                  color: root.dim
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.bodySmall
                 }
               }
             }

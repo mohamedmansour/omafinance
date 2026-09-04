@@ -17,11 +17,26 @@
     "description": "Pinned ticker on the bar, watchlist popup with search and charts",
     "category": "Info",
     "allowMultiple": false,
-    "defaultSection": "center",
+    "defaultSection": "right",
     "defaults": {
-      "refreshSeconds": 60
+      "refreshSeconds": 60,
+      "showOnBar": true,
+      "barSection": "right"
     },
     "schema": [
+      {
+        "key": "showOnBar",
+        "type": "boolean",
+        "label": "Show ticker on bar",
+        "defaultValue": true
+      },
+      {
+        "key": "barSection",
+        "type": "enum",
+        "label": "Bar position",
+        "options": ["left", "center", "right"],
+        "defaultValue": "right"
+      },
       {
         "key": "refreshSeconds",
         "type": "integer",

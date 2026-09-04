@@ -133,7 +133,7 @@ function sparkUrl(symbols) {
   var list = Array.isArray(symbols) ? symbols.slice() : []
   return "https://query1.finance.yahoo.com/v7/finance/spark?symbols="
     + encodeURIComponent(list.join(","))
-    + "&range=1d&interval=5m"
+    + "&range=1d&interval=5m&includePrePost=true"
 }
 
 function chartRanges() {
@@ -183,11 +183,74 @@ function rangeChangePercent(quote, rangeKey) {
 
 function chartUrl(symbol, rangeKey) {
   var spec = chartSpec(rangeKey)
+  var prepost = String(rangeKey || "1D") === "1D" ? "true" : "false"
   return "https://query1.finance.yahoo.com/v8/finance/chart/"
     + encodeURIComponent(normalizeSymbol(symbol))
     + "?range=" + spec.range
     + "&interval=" + spec.interval
-    + "&includePrePost=false"
+    + "&includePrePost=" + prepost
+}
+
+function collectPeriods(value) {
+  var out = []
+  function walk(v) {
+    if (!v) return
+    if (Array.isArray(v)) {
+      for (var i = 0; i < v.length; i++) walk(v[i])
+      return
+    }
+    if (typeof v === "object" && v.start != null && v.end != null) {
+      var a = Number(v.start)
+      var b = Number(v.end)
+      if (isFinite(a) && isFinite(b)) out.push({ start: a, end: b })
+    }
+  }
+  walk(value)
+  return out
+}
+
+function inWindows(windows, now) {
+  for (var i = 0; i < windows.length; i++) {
+    if (now >= windows[i].start && now < windows[i].end) return true
+  }
+  return false
+}
+
+function sessionFromMeta(meta) {
+  if (!meta) return "closed"
+  if (String(meta.instrumentType || "") === "CRYPTOCURRENCY") return "live"
+  var now = Date.now() / 1000
+  var periods = meta.tradingPeriods || {}
+  var current = meta.currentTradingPeriod || {}
+  var pre = collectPeriods(periods.pre).concat(collectPeriods(current.pre))
+  var regular = collectPeriods(periods.regular).concat(collectPeriods(current.regular))
+  var post = collectPeriods(periods.post).concat(collectPeriods(current.post))
+  if (inWindows(regular, now)) return "regular"
+  if (inWindows(pre, now)) return "pre"
+  if (inWindows(post, now)) return "post"
+  return "closed"
+}
+
+function rangeCaption(rangeKey, quote) {
+  switch (String(rangeKey || "1D")) {
+    case "1D":
+      var session = quote && quote.session
+      if (session === "regular" || session === "live") return "Live"
+      return "At Close"
+    case "1W": return "Past Week"
+    case "1M": return "Past Month"
+    case "YTD": return "Year to date"
+    case "1Y": return "Past Year"
+    case "5Y": return "Past 5 Years"
+    case "All": return "All time"
+    default: return ""
+  }
+}
+
+function extendedLabel(quote) {
+  if (!quote || !quote.hasExtended) return ""
+  if (quote.session === "pre") return "Pre-Market"
+  return "After Hours"
 }
 
 function parseSearch(raw) {
@@ -235,24 +298,46 @@ function quoteFromChart(result, fallbackSymbol) {
   var symbol = normalizeSymbol(meta.symbol || fallbackSymbol)
   if (!symbol) return null
 
-  var price = Number(meta.regularMarketPrice)
+  var regularPrice = finiteOrNull(meta.regularMarketPrice)
   var prev = Number(meta.chartPreviousClose)
   if (!isFinite(prev)) prev = Number(meta.previousClose)
-  var changePct = Number(meta.regularMarketChangePercent)
-  if (!isFinite(changePct) && isFinite(price) && isFinite(prev) && prev !== 0)
-    changePct = ((price - prev) / prev) * 100
+  var regularPct = Number(meta.regularMarketChangePercent)
+  if (!isFinite(regularPct) && regularPrice != null && isFinite(prev) && prev !== 0)
+    regularPct = ((regularPrice - prev) / prev) * 100
+  if (!isFinite(regularPct)) regularPct = null
+
+  var fullday = finiteOrNull(meta.fulldayPrice)
+  var fulldayPct = Number(meta.fulldayChangePercent)
+  if (!isFinite(fulldayPct)) fulldayPct = null
+  var session = sessionFromMeta(meta)
+  var hasPrePost = !!meta.hasPrePostMarketData
+  var latest = (hasPrePost && fullday != null) ? fullday : regularPrice
+  var latestPct = (hasPrePost && fulldayPct != null) ? fulldayPct : regularPct
+  var extendedPct = null
+  if (regularPrice && fullday != null && regularPrice !== 0)
+    extendedPct = ((fullday - regularPrice) / regularPrice) * 100
+  var hasExtended = hasPrePost && fullday != null && regularPrice != null
+    && Math.abs(fullday - regularPrice) >= 0.005
+  var openPx = finiteOrNull(meta.regularMarketOpen)
+  if (openPx === 0) openPx = null
 
   return {
     symbol: symbol,
     name: String(meta.shortName || meta.longName || symbol),
     currency: String(meta.currency || "USD"),
-    price: isFinite(price) ? price : null,
+    price: latest,
     previousClose: isFinite(prev) ? prev : null,
-    changePercent: isFinite(changePct) ? changePct : null,
+    changePercent: latestPct,
+    regularPrice: regularPrice,
+    regularChangePercent: regularPct,
+    extendedPrice: fullday,
+    extendedChangePercent: extendedPct,
+    hasExtended: hasExtended,
+    session: session,
     dayHigh: finiteOrNull(meta.regularMarketDayHigh),
     dayLow: finiteOrNull(meta.regularMarketDayLow),
     volume: finiteOrNull(meta.regularMarketVolume),
-    open: finiteOrNull(meta.regularMarketOpen),
+    open: openPx,
     fiftyTwoWeekHigh: finiteOrNull(meta.fiftyTwoWeekHigh),
     fiftyTwoWeekLow: finiteOrNull(meta.fiftyTwoWeekLow),
     priceHint: meta.priceHint,
@@ -586,6 +671,8 @@ if (typeof module !== "undefined") {
     chartSpec: chartSpec,
     chartUrl: chartUrl,
     rangeChangePercent: rangeChangePercent,
+    rangeCaption: rangeCaption,
+    extendedLabel: extendedLabel,
     parseSearch: parseSearch,
     parseSpark: parseSpark,
     parseChart: parseChart,

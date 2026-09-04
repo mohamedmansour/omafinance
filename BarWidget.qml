@@ -6,12 +6,15 @@ BarWidget {
   id: root
   moduleName: "mohamedmansour.finance"
 
-  readonly property color upColor: Qt.rgba(0.49, 0.73, 0.49, 1)
-  readonly property color downColor: bar ? bar.urgent : Color.urgent
+  readonly property color upColor: Qt.rgba(0.22, 0.50, 0.30, 1)
+  readonly property color downColor: Qt.rgba(0.62, 0.22, 0.22, 1)
+  readonly property bool showTicker: panelLoader.item ? panelLoader.item.showOnBar !== false : true
   readonly property string labelTone: panelLoader.item ? String(panelLoader.item.labelTone || "flat") : "flat"
-  readonly property color pillColor: labelTone === "up"
-    ? upColor
-    : (labelTone === "down" ? downColor : (bar ? bar.barForeground : Color.foreground))
+  readonly property color pillColor: !showTicker
+    ? (bar ? bar.barForeground : Color.foreground)
+    : (labelTone === "up"
+      ? upColor
+      : (labelTone === "down" ? downColor : (bar ? bar.barForeground : Color.foreground)))
 
   function injectPanel() {
     var target = panelLoader.item
@@ -71,6 +74,7 @@ BarWidget {
     bar: root.bar
     text: {
       if (!panelLoader.item) return "—"
+      if (!root.showTicker) return "$"
       return root.vertical ? panelLoader.item.verticalLabel : panelLoader.item.label
     }
     foreground: root.pillColor
