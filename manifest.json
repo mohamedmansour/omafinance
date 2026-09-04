@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "mohamedmansour.finance",
   "name": "Omafinance",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "mohamedmansour",
   "license": "MIT",
   "description": "Omafinance - Omarchy-style watchlist for the bar",
