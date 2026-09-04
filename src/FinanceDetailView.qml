@@ -189,10 +189,10 @@ Column {
 
     Row {
         width: parent.width
-        spacing: Style.space(16)
+        spacing: Style.space(32)
 
         Column {
-            width: controller.showExtended ? (parent.width - parent.spacing) / 2 : parent.width
+            width: controller.showExtended ? implicitWidth : parent.width
             spacing: Style.space(6)
 
             Column {
@@ -232,7 +232,6 @@ Column {
 
         Column {
             visible: controller.showExtended
-            width: (parent.width - parent.spacing) / 2
             spacing: Style.space(6)
 
             Column {

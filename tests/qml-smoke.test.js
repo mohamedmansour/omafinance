@@ -120,6 +120,14 @@ test("detail header stacks small ticker, company name, then price", () => {
   assert.match(detail, /id:\s*companyName[\s\S]*?font\.pixelSize:\s*Style\.font\.display/)
 })
 
+test("extended-hours price sits beside the at-close block", () => {
+  const detail = fs.readFileSync(source("FinanceDetailView.qml"), "utf8")
+
+  assert.match(detail, /Row\s*\{\s*width:\s*parent\.width\s*spacing:\s*Style\.space\(32\)/)
+  assert.match(detail, /width:\s*controller\.showExtended \? implicitWidth : parent\.width/)
+  assert.doesNotMatch(detail, /width:\s*\(parent\.width - parent\.spacing\) \/ 2/)
+})
+
 test("watchlist pointer-down prefetches details without duplicating the click fetch", () => {
   const panel = fs.readFileSync(source("Panel.qml"), "utf8")
   const list = fs.readFileSync(source("FinanceListView.qml"), "utf8")
