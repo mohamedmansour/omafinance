@@ -201,23 +201,15 @@ Column {
                     font.bold: true
                 }
 
-                Rectangle {
+                Text {
+                    id: detailChange
                     anchors.verticalCenter: parent.verticalCenter
-                    radius: Style.space(6)
-                    color: controller.pillFill(controller.shownMainChange)
-                    implicitWidth: detailChange.implicitWidth + Style.space(14)
-                    implicitHeight: detailChange.implicitHeight + Style.space(6)
-
-                    Text {
-                        id: detailChange
-                        anchors.centerIn: parent
-                        textFormat: Text.PlainText
-                        text: Model.formatChangePair(controller.shownMainChange, controller.shownMainChangeAmount, controller.detailMainPrice, controller.activeQuote ? controller.activeQuote.currency : "USD", controller.activeQuote ? controller.activeQuote.priceHint : 2)
-                        color: controller.contentForeground
-                        font.family: controller.contentFontFamily
-                        font.pixelSize: Style.font.body
-                        font.bold: true
-                    }
+                    textFormat: Text.PlainText
+                    text: Model.formatChangePair(controller.shownMainChange, controller.shownMainChangeAmount, controller.detailMainPrice, controller.activeQuote ? controller.activeQuote.currency : "USD", controller.activeQuote ? controller.activeQuote.priceHint : 2)
+                    color: controller.toneColor(controller.shownMainChange)
+                    font.family: controller.contentFontFamily
+                    font.pixelSize: Style.font.body
+                    font.bold: true
                 }
             }
 
@@ -247,23 +239,15 @@ Column {
                     font.bold: true
                 }
 
-                Rectangle {
+                Text {
+                    id: extChange
                     anchors.verticalCenter: parent.verticalCenter
-                    radius: Style.space(6)
-                    color: controller.pillFill(controller.sessionQuote ? controller.sessionQuote.extendedChangePercent : null)
-                    implicitWidth: extChange.implicitWidth + Style.space(14)
-                    implicitHeight: extChange.implicitHeight + Style.space(6)
-
-                    Text {
-                        id: extChange
-                        anchors.centerIn: parent
-                        textFormat: Text.PlainText
-                        text: controller.sessionQuote ? Model.formatChangePair(controller.sessionQuote.extendedChangePercent, controller.extendedChangeAmount, controller.sessionQuote.extendedPrice, controller.sessionQuote.currency, controller.sessionQuote.priceHint) : "-"
-                        color: controller.contentForeground
-                        font.family: controller.contentFontFamily
-                        font.pixelSize: Style.font.body
-                        font.bold: true
-                    }
+                    textFormat: Text.PlainText
+                    text: controller.sessionQuote ? Model.formatChangePair(controller.sessionQuote.extendedChangePercent, controller.extendedChangeAmount, controller.sessionQuote.extendedPrice, controller.sessionQuote.currency, controller.sessionQuote.priceHint) : "-"
+                    color: controller.toneColor(controller.sessionQuote ? controller.sessionQuote.extendedChangePercent : null)
+                    font.family: controller.contentFontFamily
+                    font.pixelSize: Style.font.body
+                    font.bold: true
                 }
             }
 

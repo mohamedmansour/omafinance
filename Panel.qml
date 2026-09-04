@@ -96,7 +96,7 @@ Panel {
     readonly property var pinnedQuote: quotes[barSymbol] || null
     readonly property string label: Model.barLabel(barSymbol, pinnedQuote, false, showTicker, showPrice, showChange, changeStyle)
     readonly property string verticalLabel: Model.barLabel(barSymbol, pinnedQuote, true, showTicker, showPrice, showChange, changeStyle)
-    readonly property string labelTone: Model.changeTone(pinnedQuote ? pinnedQuote.changePercent : null)
+    readonly property string labelTone: Model.barLabelTone(pinnedQuote, showTicker, showPrice, showChange, changeStyle)
     readonly property string quoteStatusText: {
         var hasQuotes = Object.keys(quotes || {}).length > 0;
         if (quoteProc.running)

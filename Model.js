@@ -512,7 +512,7 @@ function formatChangePair(pct, amount, price, currency, hint) {
   if (p === "-" && a === "-") return "-"
   if (a === "-") return p
   if (p === "-") return a
-  return p + "  " + a
+  return a + " (" + p + ")"
 }
 
 function formatCompact(value) {
@@ -546,6 +546,11 @@ function barLabel(pinned, quote, vertical, showTicker, showPrice, showChange, st
   if (showPrice !== false && price && price !== "-") parts.push(price)
   if (showChange !== false && change && change !== "-") parts.push(change)
   return parts.length ? parts.join(vertical ? "\n" : "  ") : "$"
+}
+
+function barLabelTone(quote, showTicker, showPrice, showChange, style) {
+  if ((showTicker === false && showPrice === false && showChange === false) || !quote) return "flat"
+  return changeTone(style === "dollars" ? quote.change : quote.changePercent)
 }
 
 function suggestionMeta(row) {
@@ -798,6 +803,7 @@ if (typeof module !== "undefined") {
     formatCompact: formatCompact,
     changeTone: changeTone,
     barLabel: barLabel,
+    barLabelTone: barLabelTone,
     suggestionMeta: suggestionMeta,
     isFavorite: isFavorite,
     insightsUrl: insightsUrl,

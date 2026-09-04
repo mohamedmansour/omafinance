@@ -20,6 +20,13 @@ test("zero remains a valid numeric value", () => {
   assert.equal(Model.changeTone(0), "flat")
 })
 
+test("detail changes show amount then parenthesized percent", () => {
+  assert.equal(Model.formatChangePair(1.25, 2.5, 100, "USD", 2), "+$2.50 (+1.25%)")
+  assert.equal(Model.formatChangePair(-1.25, -2.5, 100, "USD", 2), "-$2.50 (-1.25%)")
+  assert.equal(Model.formatChangePair(0, 0, 100, "USD", 2), "$0.00 (0.00%)")
+  assert.equal(Model.formatChangePair(null, 2.5, null, "USD", 2), "+$2.50")
+})
+
 test("delayed loader stays hidden until the wait elapses while still loading", () => {
   assert.equal(Model.delayedLoaderDelayMs(), 100)
   assert.equal(Model.shouldShowDelayedLoader(false, 1, 200, 100), false)
@@ -101,6 +108,12 @@ test("bar fields can be shown independently", () => {
   assert.equal(Model.barLabel("AAPL", quote, false, true, true, false), "AAPL  $241.60")
   assert.equal(Model.barLabel("AAPL", quote, false, false, false, false), "$")
   assert.equal(Model.barLabel("AAPL", quote, false, true, true, true, "dollars"), "AAPL  $241.60  +$2.94")
+  assert.equal(Model.barLabelTone(quote, true, false, false), "up")
+  assert.equal(Model.barLabelTone(quote, false, true, false), "up")
+  assert.equal(Model.barLabelTone(quote, false, false, true), "up")
+  assert.equal(Model.barLabelTone(quote, false, false, false), "flat")
+  assert.equal(Model.barLabelTone(null, true, true, true), "flat")
+  assert.equal(Model.barLabelTone({ change: -2.94, changePercent: null }, true, false, false, "dollars"), "down")
 })
 
 test("state parsing normalizes symbols and removes invalid pins", () => {

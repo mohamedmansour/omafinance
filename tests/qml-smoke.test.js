@@ -61,6 +61,14 @@ test("watchlist pointer-down prefetches details without duplicating the click fe
   assert.match(panel, /function openDetail\(symbol\)\s*\{\s*if \(!prepareDetail\(symbol\)\)/)
 })
 
+test("detail price changes use tone-colored text without pill backgrounds", () => {
+  const detail = fs.readFileSync(path.join(root, "FinanceDetailView.qml"), "utf8")
+
+  assert.doesNotMatch(detail, /pillFill\(/)
+  assert.match(detail, /id:\s*detailChange[\s\S]*?color:\s*controller\.toneColor\(controller\.shownMainChange\)/)
+  assert.match(detail, /id:\s*extChange[\s\S]*?color:\s*controller\.toneColor\(controller\.sessionQuote \? controller\.sessionQuote\.extendedChangePercent : null\)/)
+})
+
 test("change style follows the show-change setting and precedes refresh", () => {
   const settings = fs.readFileSync(path.join(root, "FinanceSettingsView.qml"), "utf8")
   const changeStyle = settings.indexOf('text: "Change on bar"')
