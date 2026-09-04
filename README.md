@@ -1,6 +1,10 @@
 # Omafinance
 
-Omarchy-style watchlist for the bar. Stocks and crypto, live quotes, sparklines, and a detail chart.
+**Omafinance** is an Omarchy bar watchlist for stocks and crypto. A pinned ticker (or a rotating set) lives on the bar; click it for sparklines, search-to-favorite, range charts, and fundamentals — no API key.
+
+| Watchlist | Detail |
+| :-------: | :----: |
+| ![Watchlist](home.png) | ![Detail](detail.png) |
 
 ## Features
 
