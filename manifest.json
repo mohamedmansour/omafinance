@@ -5,7 +5,7 @@
   "version": "1.0.0",
   "author": "mohamedmansour",
   "license": "MIT",
-  "description": "Omafinance — iOS Stocks-style watchlist for the Omarchy bar",
+  "description": "Omafinance — Omarchy-style watchlist for the bar",
   "kinds": [
     "bar-widget"
   ],

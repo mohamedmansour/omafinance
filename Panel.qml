@@ -17,7 +17,8 @@ Panel {
   readonly property var barIdentity: hostWidget || root
 
   property var watchlist: Model.defaultWatchlist()
-  property string pinned: Model.defaultPinned()
+  property var pinned: Model.defaultPinned()
+  property int pinIndex: 0
   property var quotes: ({})
   property int selectedIndex: 0
   property bool cursorActive: false
@@ -43,9 +44,10 @@ Panel {
   readonly property color upFill: Qt.rgba(upColor.r, upColor.g, upColor.b, 1)
   readonly property color downFill: Qt.rgba(downColor.r, downColor.g, downColor.b, 1)
   readonly property int refreshSeconds: Math.max(15, parseInt(setting("refreshSeconds", 60), 10) || 60)
-  readonly property var pinnedQuote: quotes[pinned] || null
-  readonly property string label: Model.barLabel(pinned, pinnedQuote, false)
-  readonly property string verticalLabel: Model.barLabel(pinned, pinnedQuote, true)
+  readonly property string barSymbol: Model.barSymbol(pinned, watchlist, pinIndex)
+  readonly property var pinnedQuote: quotes[barSymbol] || null
+  readonly property string label: Model.barLabel(barSymbol, pinnedQuote, false)
+  readonly property string verticalLabel: Model.barLabel(barSymbol, pinnedQuote, true)
   readonly property string labelTone: Model.changeTone(pinnedQuote ? pinnedQuote.changePercent : null)
   readonly property var detailRanges: Model.chartRanges()
   readonly property var activeQuote: quotes[detailSymbol] || detailQuote
@@ -157,7 +159,6 @@ Panel {
     watchlist = next
     selectedIndex = next.length - 1
     cursorActive = true
-    if (!pinned) pinned = Model.resolvePinned(next, next[next.length - 1])
     persist()
     refresh()
   }
@@ -165,7 +166,7 @@ Panel {
   function removeSymbol(symbol) {
     var next = Model.removeSymbol(watchlist, symbol)
     watchlist = next
-    pinned = Model.resolvePinned(next, pinned)
+    pinned = Model.parsePinned(pinned, next)
     clampSelected()
     persist()
   }
@@ -175,7 +176,7 @@ Panel {
     if (!next) return
     var list = Model.addSymbol(watchlist, next)
     watchlist = list
-    pinned = next
+    pinned = Model.togglePinned(pinned, list, next)
     persist()
     refresh()
   }
@@ -416,6 +417,14 @@ Panel {
     onTriggered: root.refresh()
   }
 
+  Timer {
+    id: pinRotateTimer
+    interval: 5000
+    running: (root.pinned || []).length > 1
+    repeat: true
+    onTriggered: root.pinIndex = root.pinIndex + 1
+  }
+
   IpcHandler {
     target: root.ipcTarget
 
@@ -632,7 +641,7 @@ Panel {
                   readonly property string symbol: String(modelData)
                   readonly property var quote: root.quotes[symbol] || null
                   readonly property bool selected: root.cursorActive && index === root.selectedIndex
-                  readonly property bool isPinned: symbol === root.pinned
+                  readonly property bool isPinned: Model.isPinned(root.pinned, symbol)
                   readonly property color sparkColor: root.toneColor(quote ? quote.changePercent : null)
 
                   CursorSurface {
@@ -806,8 +815,8 @@ Panel {
                   onClicked: root.toggleFavorite(root.detailSymbol)
                 }
                 Button {
-                  text: root.detailSymbol === root.pinned ? "Pinned" : "Pin"
-                  foreground: root.detailSymbol === root.pinned ? root.contentForeground : root.dim
+                  text: Model.isPinned(root.pinned, root.detailSymbol) ? "Pinned" : "Pin"
+                  foreground: Model.isPinned(root.pinned, root.detailSymbol) ? root.contentForeground : root.dim
                   fontFamily: root.contentFontFamily
                   fontSize: Style.font.bodySmall
                   horizontalPadding: Style.space(8)

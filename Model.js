@@ -3,7 +3,7 @@ function defaultWatchlist() {
 }
 
 function defaultPinned() {
-  return "AAPL"
+  return ["AAPL"]
 }
 
 function defaultDetailRange() {
@@ -40,9 +40,11 @@ function parseState(raw) {
     }
     if (list.length === 0) list = fallback.watchlist.slice()
 
-    var pinned = normalizeSymbol(data.pinned)
-    if (!pinned || list.indexOf(pinned) === -1) pinned = list[0]
-    return { watchlist: list, pinned: pinned, detailRange: normalizeRange(data.detailRange) }
+    return {
+      watchlist: list,
+      pinned: parsePinned(data.pinned, list),
+      detailRange: normalizeRange(data.detailRange)
+    }
   } catch (e) {
     return fallback
   }
@@ -52,7 +54,7 @@ function serializeState(watchlist, pinned, detailRange) {
   var list = Array.isArray(watchlist) ? watchlist.slice() : defaultWatchlist().slice()
   return JSON.stringify({
     watchlist: list,
-    pinned: resolvePinned(list, pinned),
+    pinned: parsePinned(pinned, list),
     detailRange: normalizeRange(detailRange)
   }, null, 2) + "\n"
 }
@@ -75,10 +77,49 @@ function removeSymbol(watchlist, symbol) {
   return out
 }
 
-function resolvePinned(watchlist, pinned) {
+function parsePinned(raw, watchlist) {
   var list = Array.isArray(watchlist) ? watchlist : []
-  var next = normalizeSymbol(pinned)
-  if (next && list.indexOf(next) !== -1) return next
+  var src = []
+  if (Array.isArray(raw)) src = raw
+  else if (typeof raw === "string" && raw) src = [raw]
+  var out = []
+  var seen = {}
+  for (var i = 0; i < src.length; i++) {
+    var symbol = normalizeSymbol(src[i])
+    if (!symbol || seen[symbol] || list.indexOf(symbol) === -1) continue
+    seen[symbol] = true
+    out.push(symbol)
+  }
+  return out
+}
+
+function isPinned(pinned, symbol) {
+  var next = normalizeSymbol(symbol)
+  var pins = Array.isArray(pinned) ? pinned : []
+  return next !== "" && pins.indexOf(next) !== -1
+}
+
+function togglePinned(pinned, watchlist, symbol) {
+  var next = normalizeSymbol(symbol)
+  if (!next) return parsePinned(pinned, watchlist)
+  var pins = parsePinned(pinned, watchlist)
+  var idx = pins.indexOf(next)
+  if (idx !== -1) {
+    pins.splice(idx, 1)
+    return pins
+  }
+  if (watchlist && watchlist.indexOf(next) !== -1) pins.push(next)
+  return pins
+}
+
+function barSymbol(pinned, watchlist, index) {
+  var pins = Array.isArray(pinned) ? pinned : []
+  if (pins.length > 0) {
+    var len = pins.length
+    var i = ((parseInt(index, 10) || 0) % len + len) % len
+    return pins[i]
+  }
+  var list = Array.isArray(watchlist) ? watchlist : []
   return list.length ? list[0] : ""
 }
 
@@ -533,7 +574,10 @@ if (typeof module !== "undefined") {
     serializeState: serializeState,
     addSymbol: addSymbol,
     removeSymbol: removeSymbol,
-    resolvePinned: resolvePinned,
+    parsePinned: parsePinned,
+    isPinned: isPinned,
+    togglePinned: togglePinned,
+    barSymbol: barSymbol,
     searchUrl: searchUrl,
     sparkUrl: sparkUrl,
     chartRanges: chartRanges,

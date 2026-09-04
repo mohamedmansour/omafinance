@@ -1,46 +1,74 @@
 # Omafinance
 
-An [Omarchy](https://omarchy.org) bar plugin: an iOS Stocks-style watchlist for equities and crypto.
+Omarchy-style watchlist for the bar. Stocks and crypto, live quotes, sparklines, and a detail chart.
 
-A pinned ticker sits on the bar. Click it for sparklines, prices, and colored % pills. Search to open a symbol, star it to favorite, then tap through for charts and fundamentals.
+## Features
+
+- **Bar pill** — shows a pinned ticker and its % change (green / red)
+- **Watchlist** — symbol, name, sparkline, price, and change pill
+- **Search** — look up a ticker, open it, then Favorite to keep it
+- **Crypto** — Yahoo-style symbols such as `BTC-USD` and `ETH-USD`
+- **Pin rotation** — pin several tickers; the bar cycles them every 5 seconds
+- **Detail chart** — `1D` `1W` `1M` `YTD` `1Y` `5Y`, with range % and hover price
+- **Fundamentals** — market cap, P/E, dividends, next earnings, 52-week range, target, rating
+- **Remembered prefs** — watchlist, pins, and last chart range
+
+No API key. Quotes come from Yahoo Finance.
 
 ## Install
-
-Omarchy loads third-party plugins from git. There is no separate plugin store — users install from the repo URL:
 
 ```bash
 omarchy plugin add https://github.com/mohamedmansour/omafinance.git --enable
 ```
 
-That clones the plugin into `~/.config/omarchy/plugins/mohamedmansour.finance` and puts **Omafinance** on the bar (center, by default).
+Omafinance lands on the center of the bar. Move it with:
 
-Update later with:
+```bash
+omarchy bar move mohamedmansour.finance --section right
+```
+
+## Update
+
+Updates follow git. After new commits are on GitHub:
 
 ```bash
 omarchy plugin update mohamedmansour.finance
 ```
 
-Remove with:
+You will see a diff, then a fast-forward. The `version` field in `manifest.json` is only a label — you do not need a new version number for the updater to run.
+
+Update every git-managed plugin:
+
+```bash
+omarchy plugin update
+```
+
+## Uninstall
 
 ```bash
 omarchy plugin remove mohamedmansour.finance
 ```
 
+Your watchlist file is left in place (see Data below).
+
 ## Usage
 
-- **Left click** the bar pill to open the watchlist
-- **Middle click** to refresh quotes
-- **Search** to find a ticker (stocks or crypto like `BTC-USD`)
-- **☆ Favorite** on a search result or the detail header to add it
-- **Tap a row** for the detail chart (`1D` `1W` `1M` `YTD` `1Y` `5Y`)
-- Hover the detail chart for a price badge
-- **Pin** sets which ticker the bar shows
-- **Remove** (detail header) deletes a favorite
-- **Esc** goes back or closes
+| Action | What it does |
+| --- | --- |
+| Left click the bar pill | Open / close the watchlist |
+| Middle click the bar pill | Refresh quotes |
+| Type in search | Find a stock or crypto |
+| Enter on a search result | Open detail (does not auto-favorite) |
+| Favorite | Add or remove the ticker from the watchlist |
+| Pin | Add or remove it from the bar rotation |
+| Remove | Drop it from the watchlist |
+| Click a watchlist row | Open the detail chart |
+| Hover the detail chart | Price badge at that point |
+| Esc | Back to the list, or close |
 
-The last chart range is remembered.
+Keyboard while the panel is open: `/` to search, `p` to pin the selected row, Esc to go back.
 
-Toggle from a terminal:
+From a terminal:
 
 ```bash
 omarchy-shell mohamedmansour.finance toggle
@@ -48,57 +76,13 @@ omarchy-shell mohamedmansour.finance toggle
 
 ## Data
 
-Quotes come from Yahoo Finance (no API key). Watchlist, pinned ticker, and chart range are stored at:
+Watchlist, pinned tickers, and chart range:
 
 ```
 ~/.local/state/omarchy/settings/finance.json
 ```
 
-## Publish / share
-
-Omarchy does not currently have a central plugin catalog. Shipping Omafinance to other Omarchy users is:
-
-1. Push this repo to GitHub (public).
-2. Tell people to run:
-
-   ```bash
-   omarchy plugin add https://github.com/mohamedmansour/omafinance.git --enable
-   ```
-
-3. Optionally share that command on the [Omarchy Discord](https://omarchy.org), Reddit, or a community plugin list.
-
-The installer clones the git URL, validates `manifest.json` at the repo root, and refuses the reserved `omarchy.*` plugin id namespace. This plugin’s id is `mohamedmansour.finance`.
-
-### First-time GitHub publish
-
-From this directory, after `gh auth login`:
-
-```bash
-git init
-git add .
-git commit -m "Initial Omafinance plugin"
-gh repo create mohamedmansour/omafinance --public --source=. --remote=origin --push
-```
-
-Keep `manifest.json` at the **root** of the default branch. `omarchy plugin add` clones that root; it will not find a nested plugin folder.
-
-## Development
-
-```bash
-omarchy plugin validate .
-mkdir -p ~/.config/omarchy/plugins
-ln -sfn "$(pwd)" ~/.config/omarchy/plugins/mohamedmansour.finance
-omarchy-shell shell rescanPlugins
-omarchy plugin enable mohamedmansour.finance --section center
-```
-
-Validate the **repo path**, not the symlink. The installer forbids symlinks inside a plugin folder.
-
-Saves under `~/.config/omarchy/plugins/` hot-reload. If the shell is showing an old build:
-
-```bash
-omarchy restart shell
-```
+Quotes are fetched with `curl` from Yahoo Finance. Nothing is sent to this project’s servers.
 
 ## License
 
