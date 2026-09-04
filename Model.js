@@ -137,7 +137,7 @@ function sparkUrl(symbols) {
 }
 
 function chartRanges() {
-  return ["1D", "1W", "1M", "YTD", "1Y", "5Y"]
+  return ["1D", "1W", "1M", "YTD", "1Y", "5Y", "All"]
 }
 
 function normalizeRange(value) {
@@ -153,6 +153,7 @@ function chartSpec(range) {
     case "YTD": return { range: "ytd", interval: "1d" }
     case "1Y": return { range: "1y", interval: "1d" }
     case "5Y": return { range: "5y", interval: "1wk" }
+    case "All": return { range: "max", interval: "1mo" }
     default: return { range: "1d", interval: "5m" }
   }
 }

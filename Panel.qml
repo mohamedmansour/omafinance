@@ -26,6 +26,7 @@ Panel {
   property string detailSymbol: ""
   property string detailRange: "1D"
   property var detailQuote: null
+  property string chartFetchRange: ""
   property var detailPage: ({})
   property var detailInsights: ({})
   property string searchQuery: ""
@@ -51,8 +52,13 @@ Panel {
   readonly property string labelTone: Model.changeTone(pinnedQuote ? pinnedQuote.changePercent : null)
   readonly property var detailRanges: Model.chartRanges()
   readonly property var activeQuote: quotes[detailSymbol] || detailQuote
+  readonly property var rangeChart: {
+    if (detailQuote && detailQuote.chartRange === detailRange) return detailQuote
+    if (detailRange === "1D" && quotes[detailSymbol]) return quotes[detailSymbol]
+    return null
+  }
   readonly property var detailStats: Model.buildDetailStats(activeQuote, detailPage, detailInsights)
-  readonly property var detailRangeChange: Model.rangeChangePercent(detailQuote || activeQuote, detailRange)
+  readonly property var detailRangeChange: Model.rangeChangePercent(rangeChart, detailRange)
   readonly property bool detailIsFavorite: Model.isFavorite(watchlist, detailSymbol)
   readonly property int rowHeight: Style.space(56)
 
@@ -192,7 +198,7 @@ Panel {
     var next = Model.normalizeSymbol(symbol)
     if (!next) return
     detailSymbol = next
-    detailQuote = quotes[next] || null
+    detailQuote = null
     detailPage = ({})
     detailInsights = ({})
     view = "detail"
@@ -213,16 +219,21 @@ Panel {
     detailRange = next
     persist()
     if (!detailSymbol) return
+    detailQuote = null
+    startChartFetch()
+  }
+
+  function startChartFetch() {
+    if (!detailSymbol) return
+    chartFetchRange = detailRange
     if (chartProc.running) chartProc.running = false
-    chartProc.command = ["curl", "-fsS", "--max-time", "8", "-A", "Mozilla/5.0", Model.chartUrl(detailSymbol, detailRange)]
+    chartProc.command = ["curl", "-fsS", "--max-time", "8", "-A", "Mozilla/5.0", Model.chartUrl(detailSymbol, chartFetchRange)]
     chartProc.running = true
   }
 
   function fetchDetail() {
     if (!detailSymbol) return
-    if (chartProc.running) chartProc.running = false
-    chartProc.command = ["curl", "-fsS", "--max-time", "8", "-A", "Mozilla/5.0", Model.chartUrl(detailSymbol, detailRange)]
-    chartProc.running = true
+    startChartFetch()
     fetchInsights()
     fetchQuotePage()
   }
@@ -374,8 +385,10 @@ Panel {
       waitForEnd: true
       onStreamFinished: {
         var parsed = Model.parseChart(text)
-        if (parsed && parsed.symbol === root.detailSymbol)
-          root.detailQuote = parsed
+        if (!parsed || parsed.symbol !== root.detailSymbol) return
+        if (root.chartFetchRange !== root.detailRange) return
+        parsed.chartRange = root.chartFetchRange
+        root.detailQuote = parsed
       }
     }
   }
@@ -931,7 +944,7 @@ Panel {
             Sparkline {
               width: parent.width
               height: Style.space(140)
-              values: root.detailQuote && root.detailQuote.closes ? root.detailQuote.closes : (root.activeQuote && root.activeQuote.closes ? root.activeQuote.closes : [])
+              values: root.rangeChart && root.rangeChart.closes ? root.rangeChart.closes : []
               lineColor: root.toneColor(root.detailRangeChange)
               fillColor: Qt.rgba(lineColor.r, lineColor.g, lineColor.b, 0.18)
               interactive: true

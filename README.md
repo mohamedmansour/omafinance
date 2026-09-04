@@ -13,7 +13,7 @@
 - **Search** — look up a ticker, open it, then Favorite to keep it
 - **Crypto** — Yahoo-style symbols such as `BTC-USD` and `ETH-USD`
 - **Pin rotation** — pin several tickers; the bar cycles them every 5 seconds
-- **Detail chart** — `1D` `1W` `1M` `YTD` `1Y` `5Y`, with range % and hover price
+- **Detail chart** — `1D` `1W` `1M` `YTD` `1Y` `5Y` `All`, with range % and hover price
 - **Fundamentals** — market cap, P/E, dividends, next earnings, 52-week range, target, rating
 - **Remembered prefs** — watchlist, pins, and last chart range
 
