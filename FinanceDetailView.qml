@@ -9,6 +9,39 @@ Column {
     width: parent.width
     spacing: Style.space(12)
     visible: controller.view === "detail"
+    property bool showDetailsSpinner: false
+    property double detailsLoadStartedAt: 0
+    readonly property int detailsSpinnerDelayMs: Model.delayedLoaderDelayMs()
+    readonly property string detailsPendingKey: visible && controller.detailDataLoading ? String(controller.detailSymbol) : ""
+
+    function armDetailsSpinner() {
+        detailsSpinnerDelay.stop();
+        showDetailsSpinner = false;
+        if (!detailsPendingKey) {
+            detailsLoadStartedAt = 0;
+            return;
+        }
+        detailsLoadStartedAt = Date.now();
+        detailsSpinnerDelay.interval = detailsSpinnerDelayMs;
+        detailsSpinnerDelay.start();
+    }
+
+    onDetailsPendingKeyChanged: armDetailsSpinner()
+
+    Timer {
+        id: detailsSpinnerDelay
+        interval: detailViewRoot.detailsSpinnerDelayMs
+        repeat: false
+        onTriggered: {
+            var remaining = detailViewRoot.detailsSpinnerDelayMs - (Date.now() - detailViewRoot.detailsLoadStartedAt);
+            if (remaining > 0 && controller.detailDataLoading && detailViewRoot.visible) {
+                interval = remaining;
+                start();
+                return;
+            }
+            showDetailsSpinner = Model.shouldShowDelayedLoader(controller.detailDataLoading && detailViewRoot.visible, detailViewRoot.detailsLoadStartedAt, Date.now(), detailViewRoot.detailsSpinnerDelayMs);
+        }
+    }
 
     Item {
         width: parent.width
@@ -79,13 +112,55 @@ Column {
         width: parent.width
         spacing: Style.space(2)
 
-        Text {
-            textFormat: Text.PlainText
-            text: controller.detailSymbol
-            color: controller.contentForeground
-            font.family: controller.contentFontFamily
-            font.pixelSize: Style.font.heading
-            font.bold: true
+        Row {
+            spacing: Style.space(8)
+
+            Text {
+                id: tickerLabel
+                textFormat: Text.PlainText
+                text: controller.detailSymbol
+                color: controller.contentForeground
+                font.family: controller.contentFontFamily
+                font.pixelSize: Style.font.heading
+                font.bold: true
+            }
+
+            Item {
+                visible: detailViewRoot.showDetailsSpinner
+                width: Style.font.body
+                height: tickerLabel.height
+
+                Canvas {
+                    id: detailsSpinner
+                    width: Style.font.body
+                    height: Style.font.body
+                    anchors.verticalCenter: parent.verticalCenter
+                    onWidthChanged: requestPaint()
+                    onHeightChanged: requestPaint()
+                    onVisibleChanged: if (visible)
+                        requestPaint()
+                    onPaint: {
+                        var ctx = getContext("2d");
+                        var line = Math.max(1.5, width * 0.14);
+                        var radius = Math.min(width, height) / 2 - line;
+                        ctx.reset();
+                        ctx.lineWidth = line;
+                        ctx.lineCap = "round";
+                        ctx.strokeStyle = controller.dim;
+                        ctx.beginPath();
+                        ctx.arc(width / 2, height / 2, radius, 0, Math.PI * 1.5);
+                        ctx.stroke();
+                    }
+
+                    RotationAnimation on rotation {
+                        running: detailsSpinner.visible
+                        from: 0
+                        to: 360
+                        duration: 800
+                        loops: Animation.Infinite
+                    }
+                }
+            }
         }
         Text {
             textFormat: Text.PlainText

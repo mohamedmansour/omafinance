@@ -20,6 +20,15 @@ test("zero remains a valid numeric value", () => {
   assert.equal(Model.changeTone(0), "flat")
 })
 
+test("delayed loader stays hidden until the wait elapses while still loading", () => {
+  assert.equal(Model.delayedLoaderDelayMs(), 100)
+  assert.equal(Model.shouldShowDelayedLoader(false, 1, 200, 100), false)
+  assert.equal(Model.shouldShowDelayedLoader(true, 0, 200, 100), false)
+  assert.equal(Model.shouldShowDelayedLoader(true, 100, 199, 100), false)
+  assert.equal(Model.shouldShowDelayedLoader(true, 100, 200, 100), true)
+  assert.equal(Model.shouldShowDelayedLoader(true, 100, 150, 100), false)
+})
+
 test("retry delay backs off exponentially and respects its ceiling", () => {
   assert.equal(Model.backoffDelay(5000, 0, 60000), 5000)
   assert.equal(Model.backoffDelay(5000, 1, 60000), 10000)

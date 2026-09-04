@@ -30,6 +30,27 @@ test("panel composes the extracted views", () => {
   assert.match(panel, /backoffDelay\(2000, quoteFailureCount, 60000\)/)
 })
 
+test("detail loading is a delayed icon beside the ticker", () => {
+  const panel = fs.readFileSync(path.join(root, "Panel.qml"), "utf8")
+  const detail = fs.readFileSync(path.join(root, "FinanceDetailView.qml"), "utf8")
+
+  assert.match(panel, /readonly property bool detailDataLoading/)
+  assert.doesNotMatch(panel, /Loading market details/)
+  assert.match(detail, /id:\s*tickerLabel/)
+  assert.match(detail, /shouldShowDelayedLoader/)
+  assert.match(detail, /detailsPendingKey/)
+  assert.match(detail, /showDetailsSpinner/)
+  assert.match(detail, /id:\s*detailsSpinner\b/)
+  assert.doesNotMatch(detail, /Loading market details/)
+  const ticker = detail.indexOf("id: tickerLabel")
+  const spinner = detail.search(/id:\s*detailsSpinner\b/)
+  const status = detail.indexOf("controller.detailDataStatusText")
+  assert.notEqual(ticker, -1)
+  assert.notEqual(spinner, -1)
+  assert.ok(ticker < spinner)
+  assert.ok(status === -1 || spinner < status)
+})
+
 test("change style follows the show-change setting and precedes refresh", () => {
   const settings = fs.readFileSync(path.join(root, "FinanceSettingsView.qml"), "utf8")
   const changeStyle = settings.indexOf('text: "Change on bar"')

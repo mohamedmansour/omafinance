@@ -115,6 +115,11 @@ Panel {
             return chartError;
         return chartUpdatedAt > 0 && detailQuote ? "Chart updated " + timeLabel(chartUpdatedAt) : "";
     }
+    readonly property bool detailDataLoading: {
+        var loadingInsights = insightsProc.running && insightsFetchSymbol === detailSymbol && !insightsLoaded;
+        var loadingPage = quotePageProc.running && quotePageFetchSymbol === detailSymbol && !quotePageLoaded;
+        return loadingInsights || loadingPage;
+    }
     readonly property bool detailDataHasError: insightsError !== "" || quotePageError !== ""
     readonly property string detailDataStatusText: {
         var errors = [];
@@ -122,13 +127,7 @@ Panel {
             errors.push(insightsError);
         if (quotePageError)
             errors.push(quotePageError);
-        if (errors.length > 0)
-            return errors.join(" · ");
-        var loadingInsights = insightsProc.running && insightsFetchSymbol === detailSymbol;
-        var loadingPage = quotePageProc.running && quotePageFetchSymbol === detailSymbol;
-        if ((loadingInsights && !insightsLoaded) || (loadingPage && !quotePageLoaded))
-            return "Loading market details…";
-        return "";
+        return errors.join(" · ");
     }
     readonly property var detailRanges: Model.chartRanges()
     readonly property var activeQuote: quotes[detailSymbol] || detailQuote

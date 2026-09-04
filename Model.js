@@ -430,6 +430,20 @@ function backoffDelay(baseMs, failures, maxMs) {
   return Math.min(ceiling, base * Math.pow(2, count))
 }
 
+function delayedLoaderDelayMs() {
+  return 100
+}
+
+function shouldShowDelayedLoader(loading, startedAt, now, delayMs) {
+  if (!loading) return false
+  var started = Number(startedAt)
+  var current = Number(now)
+  var delay = delayMs == null || delayMs === undefined ? delayedLoaderDelayMs() : Number(delayMs)
+  if (!isFinite(started) || started <= 0) return false
+  if (!isFinite(current) || !isFinite(delay) || delay < 0) return false
+  return (current - started) >= delay
+}
+
 function withCommas(text) {
   var parts = String(text).split(".")
   parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",")
@@ -773,6 +787,8 @@ if (typeof module !== "undefined") {
     parseChart: parseChart,
     mergeQuotes: mergeQuotes,
     backoffDelay: backoffDelay,
+    delayedLoaderDelayMs: delayedLoaderDelayMs,
+    shouldShowDelayedLoader: shouldShowDelayedLoader,
     formatPrice: formatPrice,
     formatPercent: formatPercent,
     formatChange: formatChange,
