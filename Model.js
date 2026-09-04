@@ -156,6 +156,29 @@ function chartSpec(range) {
   }
 }
 
+function rangeChangeAmount(quote, rangeKey) {
+  if (!quote) return null
+  var key = String(rangeKey || "1D")
+  var last = finiteOrNull(quote.price)
+  var closes = quote.closes || []
+  var nums = []
+  var i
+  for (i = 0; i < closes.length; i++) {
+    var n = Number(closes[i])
+    if (isFinite(n)) nums.push(n)
+  }
+  if (last === null && nums.length) last = nums[nums.length - 1]
+  if (key === "1D") {
+    var prev = finiteOrNull(quote.previousClose)
+    if (prev != null && last !== null) return last - prev
+    return finiteOrNull(quote.change)
+  }
+  if (nums.length < 2 || last === null) return finiteOrNull(quote.change)
+  var first = nums[0]
+  if (first == null) return null
+  return last - first
+}
+
 function rangeChangePercent(quote, rangeKey) {
   if (!quote) return null
   var key = String(rangeKey || "1D")
@@ -309,13 +332,25 @@ function quoteFromChart(result, fallbackSymbol) {
   if (!isFinite(fulldayPct)) fulldayPct = null
   var session = sessionFromMeta(meta)
   var hasPrePost = !!meta.hasPrePostMarketData
-  var latest = (hasPrePost && fullday != null) ? fullday : regularPrice
-  var latestPct = (hasPrePost && fulldayPct != null) ? fulldayPct : regularPct
   var extendedPct = null
   if (regularPrice && fullday != null && regularPrice !== 0)
     extendedPct = ((fullday - regularPrice) / regularPrice) * 100
+  if (extendedPct == null && isFinite(fulldayPct)) extendedPct = fulldayPct
   var hasExtended = hasPrePost && fullday != null && regularPrice != null
     && Math.abs(fullday - regularPrice) >= 0.005
+  var useExtended = hasExtended && session !== "regular" && session !== "live"
+  var latest = useExtended ? fullday : regularPrice
+  var latestPct = useExtended ? (fulldayPct != null ? fulldayPct : extendedPct) : regularPct
+  var latestChange = null
+  if (useExtended) {
+    latestChange = finiteOrNull(meta.fulldayChange)
+    if (latestChange == null && fullday != null && regularPrice != null)
+      latestChange = fullday - regularPrice
+  } else {
+    latestChange = finiteOrNull(meta.regularMarketChange)
+    if (latestChange == null && regularPrice != null && isFinite(prev))
+      latestChange = regularPrice - prev
+  }
   var openPx = finiteOrNull(meta.regularMarketOpen)
   if (openPx === 0) openPx = null
 
@@ -325,6 +360,7 @@ function quoteFromChart(result, fallbackSymbol) {
     currency: String(meta.currency || "USD"),
     price: latest,
     previousClose: isFinite(prev) ? prev : null,
+    change: latestChange,
     changePercent: latestPct,
     regularPrice: regularPrice,
     regularChangePercent: regularPct,
@@ -423,6 +459,41 @@ function formatPercent(pct) {
   return sign + n.toFixed(2) + "%"
 }
 
+function formatChange(amount, currency, hint) {
+  var n = Number(amount)
+  if (!isFinite(n)) return "-"
+  var sign = n > 0 ? "+" : (n < 0 ? "-" : "")
+  var decimals = Math.abs(n) >= 0.01 ? 2 : priceDecimals(n, hint)
+  var body = withCommas(Math.abs(n).toFixed(decimals))
+  if (String(currency || "USD") === "USD") return sign + "$" + body
+  return sign + body + " " + String(currency)
+}
+
+function formatQuoteChange(quote, style) {
+  if (!quote) return "-"
+  if (style === "dollars") return formatChange(quote.change, quote.currency, quote.priceHint)
+  return formatPercent(quote.changePercent)
+}
+
+function amountFromPercent(price, pct) {
+  var p = Number(price)
+  var c = Number(pct)
+  if (!isFinite(p) || !isFinite(c) || c === -100) return null
+  return p * c / (100 + c)
+}
+
+function formatChangePair(pct, amount, price, currency, hint) {
+  var dollars = amount
+  if (dollars == null || !isFinite(Number(dollars)))
+    dollars = amountFromPercent(price, pct)
+  var p = formatPercent(pct)
+  var a = formatChange(dollars, currency, hint)
+  if (p === "-" && a === "-") return "-"
+  if (a === "-") return p
+  if (p === "-") return a
+  return p + "  " + a
+}
+
 function formatCompact(value) {
   var n = Number(value)
   if (!isFinite(n)) return "-"
@@ -440,12 +511,12 @@ function changeTone(pct) {
   return n > 0 ? "up" : "down"
 }
 
-function barLabel(pinned, quote, vertical) {
+function barLabel(pinned, quote, vertical, style) {
   var symbol = normalizeSymbol(pinned)
   if (!symbol) return "$"
-  var pct = quote ? formatPercent(quote.changePercent) : ""
-  if (!pct || pct === "-") return symbol
-  return vertical ? (symbol + "\n" + pct) : (symbol + "  " + pct)
+  var change = quote ? formatQuoteChange(quote, style) : ""
+  if (!change || change === "-") return symbol
+  return vertical ? (symbol + "\n" + change) : (symbol + "  " + change)
 }
 
 function suggestionMeta(row) {
@@ -669,6 +740,7 @@ if (typeof module !== "undefined") {
     normalizeRange: normalizeRange,
     chartSpec: chartSpec,
     chartUrl: chartUrl,
+    rangeChangeAmount: rangeChangeAmount,
     rangeChangePercent: rangeChangePercent,
     rangeCaption: rangeCaption,
     extendedLabel: extendedLabel,
@@ -678,6 +750,10 @@ if (typeof module !== "undefined") {
     mergeQuotes: mergeQuotes,
     formatPrice: formatPrice,
     formatPercent: formatPercent,
+    formatChange: formatChange,
+    formatQuoteChange: formatQuoteChange,
+    amountFromPercent: amountFromPercent,
+    formatChangePair: formatChangePair,
     formatCompact: formatCompact,
     changeTone: changeTone,
     barLabel: barLabel,

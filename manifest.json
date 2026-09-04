@@ -21,7 +21,8 @@
     "defaults": {
       "refreshSeconds": 60,
       "showOnBar": true,
-      "barSection": "right"
+      "barSection": "right",
+      "changeStyle": "percent"
     },
     "schema": [
       {
@@ -45,6 +46,13 @@
         "max": 3600,
         "step": 15,
         "defaultValue": 60
+      },
+      {
+        "key": "changeStyle",
+        "type": "enum",
+        "label": "Change on bar",
+        "options": ["percent", "dollars"],
+        "defaultValue": "percent"
       }
     ]
   }
