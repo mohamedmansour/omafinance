@@ -1,7 +1,7 @@
 const test = require("node:test")
 const assert = require("node:assert/strict")
 
-const Model = require("../Model.js")
+const Model = require("../src/Model.js")
 
 test("missing numeric values stay missing", () => {
   assert.equal(Model.formatPrice(null, "USD", 2), "-")

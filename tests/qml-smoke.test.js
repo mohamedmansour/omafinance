@@ -5,6 +5,7 @@ const path = require("node:path")
 const { spawnSync } = require("node:child_process")
 
 const root = path.resolve(__dirname, "..")
+const source = file => path.join(root, "src", file)
 const qmlFiles = [
   "BarWidget.qml",
   "Panel.qml",
@@ -17,7 +18,7 @@ const qmlFiles = [
 
 test("all plugin QML files parse with qmlformat", () => {
   for (const file of qmlFiles) {
-    const result = spawnSync("/usr/lib/qt6/bin/qmlformat", [path.join(root, file)], {
+    const result = spawnSync("/usr/lib/qt6/bin/qmlformat", [source(file)], {
       encoding: "utf8"
     })
     assert.equal(result.status, 0, `${file}: ${result.stderr || result.stdout}`)
@@ -25,14 +26,14 @@ test("all plugin QML files parse with qmlformat", () => {
 })
 
 test("panel composes the extracted views", () => {
-  const panel = fs.readFileSync(path.join(root, "Panel.qml"), "utf8")
+  const panel = fs.readFileSync(source("Panel.qml"), "utf8")
   for (const component of ["FinanceListView", "FinanceSettingsView", "FinanceDetailView"])
     assert.match(panel, new RegExp(`\\b${component}\\s*\\{`))
   assert.match(panel, /backoffDelay\(2000, quoteFailureCount, 60000\)/)
 })
 
 test("panel presents before scheduling one non-blocking open refresh", () => {
-  const panel = fs.readFileSync(path.join(root, "Panel.qml"), "utf8")
+  const panel = fs.readFileSync(source("Panel.qml"), "utf8")
 
   assert.doesNotMatch(panel, /stateFile\.reload\(\)/)
   assert.match(panel, /function open\(\)[\s\S]*?root\.controller\.show\(\);\s*scheduleOpenRefresh\(\);/)
@@ -43,7 +44,7 @@ test("panel presents before scheduling one non-blocking open refresh", () => {
 })
 
 test("search renders immediately, uses a short debounce, and caches results", () => {
-  const panel = fs.readFileSync(path.join(root, "Panel.qml"), "utf8")
+  const panel = fs.readFileSync(source("Panel.qml"), "utf8")
 
   assert.match(panel, /function startSearch\(prefix\)[\s\S]*?listView\.field\.text = prefix;[\s\S]*?Qt\.callLater/)
   assert.match(panel, /id:\s*searchDebounce[\s\S]*?interval:\s*100/)
@@ -54,7 +55,7 @@ test("search renders immediately, uses a short debounce, and caches results", ()
 })
 
 test("background quote refreshes do not show updating status", () => {
-  const panel = fs.readFileSync(path.join(root, "Panel.qml"), "utf8")
+  const panel = fs.readFileSync(source("Panel.qml"), "utf8")
 
   assert.doesNotMatch(panel, /Updating quotes/)
   assert.doesNotMatch(panel, /Updating chart/)
@@ -64,15 +65,15 @@ test("background quote refreshes do not show updating status", () => {
 })
 
 test("quote refresh uses symbols selected for the active view", () => {
-  const panel = fs.readFileSync(path.join(root, "Panel.qml"), "utf8")
+  const panel = fs.readFileSync(source("Panel.qml"), "utf8")
 
   assert.match(panel, /quoteSymbolsForView\(watchlist, detailSymbol, view\)/)
   assert.match(panel, /Model\.sparkUrl\(quoteSymbols\)/)
 })
 
 test("detail loading is a delayed icon beside the ticker", () => {
-  const panel = fs.readFileSync(path.join(root, "Panel.qml"), "utf8")
-  const detail = fs.readFileSync(path.join(root, "FinanceDetailView.qml"), "utf8")
+  const panel = fs.readFileSync(source("Panel.qml"), "utf8")
+  const detail = fs.readFileSync(source("FinanceDetailView.qml"), "utf8")
 
   assert.match(panel, /readonly property bool detailDataLoading/)
   assert.doesNotMatch(panel, /Loading market details/)
@@ -92,7 +93,7 @@ test("detail loading is a delayed icon beside the ticker", () => {
 })
 
 test("detail enrichment uses a bounded five-minute cache", () => {
-  const panel = fs.readFileSync(path.join(root, "Panel.qml"), "utf8")
+  const panel = fs.readFileSync(source("Panel.qml"), "utf8")
 
   assert.match(panel, /detailCacheTtlMs:\s*300000/)
   assert.match(panel, /detailCacheLimit:\s*16/)
@@ -105,7 +106,7 @@ test("detail enrichment uses a bounded five-minute cache", () => {
 })
 
 test("detail header stacks small ticker, company name, then price", () => {
-  const detail = fs.readFileSync(path.join(root, "FinanceDetailView.qml"), "utf8")
+  const detail = fs.readFileSync(source("FinanceDetailView.qml"), "utf8")
   const ticker = detail.indexOf("id: tickerLabel")
   const company = detail.indexOf("id: companyName")
   const price = detail.indexOf("price: controller.activeQuote ? controller.detailMainPrice")
@@ -120,8 +121,8 @@ test("detail header stacks small ticker, company name, then price", () => {
 })
 
 test("watchlist pointer-down prefetches details without duplicating the click fetch", () => {
-  const panel = fs.readFileSync(path.join(root, "Panel.qml"), "utf8")
-  const list = fs.readFileSync(path.join(root, "FinanceListView.qml"), "utf8")
+  const panel = fs.readFileSync(source("Panel.qml"), "utf8")
+  const list = fs.readFileSync(source("FinanceListView.qml"), "utf8")
 
   assert.match(list, /onPressed:\s*function\s*\(mouse\)[\s\S]*?mouse\.button === Qt\.LeftButton[\s\S]*?controller\.prefetchDetail\(symbol\)/)
   assert.match(panel, /function prefetchDetail\(symbol\)[\s\S]*?detailEnrichmentTimer\.stop\(\);[\s\S]*?fetchInsights\(\);[\s\S]*?fetchQuotePage\(\);/)
@@ -130,7 +131,7 @@ test("watchlist pointer-down prefetches details without duplicating the click fe
 })
 
 test("detail chart starts immediately while large enrichment waits one frame", () => {
-  const panel = fs.readFileSync(path.join(root, "Panel.qml"), "utf8")
+  const panel = fs.readFileSync(source("Panel.qml"), "utf8")
 
   assert.match(panel, /function fetchDetail\(\)\s*\{[\s\S]*?startChartFetch\(\);[\s\S]*?detailEnrichmentTimer\.restart\(\);/)
   assert.match(panel, /id:\s*detailEnrichmentTimer\s*\n\s*interval:\s*16/)
@@ -138,7 +139,7 @@ test("detail chart starts immediately while large enrichment waits one frame", (
 })
 
 test("watchlist virtualizes a capped set of reusable rows", () => {
-  const list = fs.readFileSync(path.join(root, "FinanceListView.qml"), "utf8")
+  const list = fs.readFileSync(source("FinanceListView.qml"), "utf8")
 
   assert.match(list, /ListView\s*\{\s*id:\s*watchlistRows/)
   assert.match(list, /height:\s*Math\.min\(controller\.watchlist\.length, 8\) \* controller\.rowHeight/)
@@ -148,7 +149,7 @@ test("watchlist virtualizes a capped set of reusable rows", () => {
 })
 
 test("sparklines cache normalized geometry for paint and hover", () => {
-  const sparkline = fs.readFileSync(path.join(root, "Sparkline.qml"), "utf8")
+  const sparkline = fs.readFileSync(source("Sparkline.qml"), "utf8")
 
   assert.match(sparkline, /property var cachedGeometry:\s*null/)
   assert.match(sparkline, /function refreshGeometry\(\)/)
@@ -161,7 +162,7 @@ test("sparklines cache normalized geometry for paint and hover", () => {
 })
 
 test("detail price changes use tone-colored text without pill backgrounds", () => {
-  const detail = fs.readFileSync(path.join(root, "FinanceDetailView.qml"), "utf8")
+  const detail = fs.readFileSync(source("FinanceDetailView.qml"), "utf8")
   const price = detail.indexOf("price: controller.activeQuote ? controller.detailMainPrice")
   const change = detail.indexOf("id: detailChange")
 
@@ -172,8 +173,8 @@ test("detail price changes use tone-colored text without pill backgrounds", () =
 })
 
 test("only changed detail price digits roll in their direction color", () => {
-  const detail = fs.readFileSync(path.join(root, "FinanceDetailView.qml"), "utf8")
-  const roll = fs.readFileSync(path.join(root, "PriceRoll.qml"), "utf8")
+  const detail = fs.readFileSync(source("FinanceDetailView.qml"), "utf8")
+  const roll = fs.readFileSync(source("PriceRoll.qml"), "utf8")
 
   assert.equal((detail.match(/\bPriceRoll\s*\{/g) || []).length, 2)
   assert.match(detail, /active:\s*controller\.opened && controller\.view === "detail"/)
@@ -184,7 +185,7 @@ test("only changed detail price digits roll in their direction color", () => {
 })
 
 test("change style follows the show-change setting and precedes refresh", () => {
-  const settings = fs.readFileSync(path.join(root, "FinanceSettingsView.qml"), "utf8")
+  const settings = fs.readFileSync(source("FinanceSettingsView.qml"), "utf8")
   const changeStyle = settings.indexOf('text: "Change on bar"')
   const refresh = settings.indexOf('label: "Background refresh (seconds)"')
 

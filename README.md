@@ -4,7 +4,7 @@
 
 | Watchlist | Detail |
 | :-------: | :----: |
-| ![Watchlist](home.png) | ![Detail](detail.png) |
+| ![Watchlist](assets/screenshots/home.png) | ![Detail](assets/screenshots/detail.png) |
 
 ## Features
 

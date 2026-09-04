@@ -10,7 +10,7 @@
     "bar-widget"
   ],
   "entryPoints": {
-    "barWidget": "BarWidget.qml"
+    "barWidget": "src/BarWidget.qml"
   },
   "barWidget": {
     "displayName": "Omafinance",
