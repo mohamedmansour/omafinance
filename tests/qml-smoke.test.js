@@ -30,6 +30,17 @@ test("panel composes the extracted views", () => {
   assert.match(panel, /backoffDelay\(2000, quoteFailureCount, 60000\)/)
 })
 
+test("change style follows the show-change setting and precedes refresh", () => {
+  const settings = fs.readFileSync(path.join(root, "FinanceSettingsView.qml"), "utf8")
+  const changeStyle = settings.indexOf('text: "Change on bar"')
+  const refresh = settings.indexOf('label: "Background refresh (seconds)"')
+
+  assert.notEqual(changeStyle, -1)
+  assert.ok(changeStyle < refresh)
+  assert.match(settings, /visible:\s*controller\.showChange[\s\S]*text:\s*"Change on bar"/)
+  assert.match(settings, /ButtonGroup\s*{[\s\S]*?visible:\s*controller\.showChange[\s\S]*?value:\s*controller\.changeStyle/)
+})
+
 test("manifest entry points exist", () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(root, "manifest.json"), "utf8"))
   assert.equal(manifest.id, "mohamedmansour.finance")

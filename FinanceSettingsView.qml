@@ -65,22 +65,8 @@ Column {
         onClicked: controller.setShowChange(!controller.showChange)
     }
 
-    NumberField {
-        width: parent.width
-        label: "Background refresh (seconds)"
-        value: controller.refreshSeconds
-        from: 15
-        to: 3600
-        stepSize: 15
-        hasCursor: controller.settingsCursor === 3
-        foreground: controller.contentForeground
-        fontFamily: controller.contentFontFamily
-        onModified: function (v) {
-            controller.setRefreshSeconds(v);
-        }
-    }
-
     Text {
+        visible: controller.showChange
         text: "Change on bar"
         color: Qt.darker(controller.contentForeground, 1.4)
         font.family: controller.contentFontFamily
@@ -88,13 +74,14 @@ Column {
     }
 
     ButtonGroup {
+        visible: controller.showChange
         width: parent.width
         foreground: controller.contentForeground
         fontFamily: controller.contentFontFamily
         fontSize: Style.font.bodySmall
         value: controller.changeStyle
         focusable: false
-        cursorIndex: controller.settingsCursor === 4 ? ["percent", "dollars"].indexOf(controller.changeStyle) : -1
+        cursorIndex: controller.settingsCursor === controller.changeStyleSettingsIndex ? ["percent", "dollars"].indexOf(controller.changeStyle) : -1
         options: [
             {
                 value: "percent",
@@ -107,6 +94,21 @@ Column {
         ]
         onChanged: function (v) {
             controller.setChangeStyle(v);
+        }
+    }
+
+    NumberField {
+        width: parent.width
+        label: "Background refresh (seconds)"
+        value: controller.refreshSeconds
+        from: 15
+        to: 3600
+        stepSize: 15
+        hasCursor: controller.settingsCursor === controller.refreshSettingsIndex
+        foreground: controller.contentForeground
+        fontFamily: controller.contentFontFamily
+        onModified: function (v) {
+            controller.setRefreshSeconds(v);
         }
     }
 
@@ -124,7 +126,7 @@ Column {
         fontSize: Style.font.bodySmall
         value: controller.barSection
         focusable: false
-        cursorIndex: controller.settingsCursor === 5 ? ["left", "center", "right"].indexOf(controller.barSection) : -1
+        cursorIndex: controller.settingsCursor === controller.barSectionSettingsIndex ? ["left", "center", "right"].indexOf(controller.barSection) : -1
         options: [
             {
                 value: "left",
