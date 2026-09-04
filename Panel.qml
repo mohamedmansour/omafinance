@@ -74,11 +74,13 @@ Panel {
     readonly property bool showTicker: setting("showTicker", legacyShowOnBar) !== false
     readonly property bool showPrice: setting("showPrice", legacyShowOnBar) !== false
     readonly property bool showChange: setting("showChange", legacyShowOnBar) !== false
+    readonly property bool showLastUpdated: setting("showLastUpdated", false) === true
     readonly property bool showBarData: showTicker || showPrice || showChange
-    readonly property bool showBarQuote: showPrice || showChange
+    readonly property bool showBarQuote: showBarData
     readonly property int changeStyleSettingsIndex: 3
     readonly property int refreshSettingsIndex: showChange ? 4 : 3
-    readonly property int barSectionSettingsIndex: showChange ? 5 : 4
+    readonly property int lastUpdatedSettingsIndex: showChange ? 5 : 4
+    readonly property int barSectionSettingsIndex: showChange ? 6 : 5
     readonly property int settingsLastIndex: barSectionSettingsIndex
     readonly property int backgroundRefreshMs: Model.backoffDelay(refreshSeconds * 1000, quoteFailureCount, 3600000)
     readonly property int liveRefreshMs: Model.backoffDelay(2000, quoteFailureCount, 60000)
@@ -100,12 +102,12 @@ Panel {
     readonly property string quoteStatusText: {
         var hasQuotes = Object.keys(quotes || {}).length > 0;
         if (quoteProc.running)
-            return hasQuotes ? "Updating quotes…" : "Loading quotes…";
+            return hasQuotes ? "" : "Loading quotes…";
         if (quoteError) {
-            var suffix = quotesUpdatedAt > 0 ? " · Last updated " + timeLabel(quotesUpdatedAt) : "";
+            var suffix = showLastUpdated && quotesUpdatedAt > 0 ? " · Last updated " + timeLabel(quotesUpdatedAt) : "";
             return quoteError + suffix;
         }
-        return quotesUpdatedAt > 0 ? "Updated " + timeLabel(quotesUpdatedAt) : "";
+        return showLastUpdated && quotesUpdatedAt > 0 ? "Updated " + timeLabel(quotesUpdatedAt) : "";
     }
     readonly property string chartStatusText: {
         var currentFetch = chartFetchSymbol === detailSymbol && chartFetchRange === detailRange;
@@ -219,23 +221,21 @@ Panel {
     function open() {
         openedFromHotkey = false;
         setCenterHoverRevealSuppressed(false);
-        root.controller.show();
-        stateFile.reload();
-        root.refresh();
         root.view = "list";
         root.clearSearch();
         root.cursorActive = root.watchlist.length > 0;
         root.selectedIndex = 0;
+        root.controller.show();
+        scheduleOpenRefresh();
     }
 
     function openFromHotkey() {
         openedFromHotkey = true;
-        root.controller.show();
-        stateFile.reload();
-        root.refresh();
         root.view = "list";
         root.cursorActive = false;
+        root.controller.show();
         root.startSearch("");
+        scheduleOpenRefresh();
         Qt.callLater(function () {
             if (root.opened)
                 setCenterHoverRevealSuppressed(true);
@@ -253,7 +253,7 @@ Panel {
         if (root.opened)
             root.close();
         else
-            root.openFromHotkey();
+            root.open();
     }
 
     function switchPanel(direction) {
@@ -332,17 +332,29 @@ Panel {
         persistSettings({
             showTicker: !!enabled
         });
+        if (enabled)
+            scheduleBarRefresh();
     }
 
     function setShowPrice(enabled) {
         persistSettings({
             showPrice: !!enabled
         });
+        if (enabled)
+            scheduleBarRefresh();
     }
 
     function setShowChange(enabled) {
         persistSettings({
             showChange: !!enabled
+        });
+        if (enabled)
+            scheduleBarRefresh();
+    }
+
+    function setShowLastUpdated(enabled) {
+        persistSettings({
+            showLastUpdated: !!enabled
         });
     }
 
@@ -406,6 +418,20 @@ Panel {
         quoteRefreshPending = false;
         quoteProc.command = ["curl", "-fsS", "--max-time", "8", "-A", "Mozilla/5.0", Model.sparkUrl(watchlist)];
         quoteProc.running = true;
+    }
+
+    function scheduleOpenRefresh() {
+        Qt.callLater(function () {
+            if (root.opened && !quoteProc.running)
+                root.refresh();
+        });
+    }
+
+    function scheduleBarRefresh() {
+        Qt.callLater(function () {
+            if (root.showBarData && !quoteProc.running)
+                root.refresh();
+        });
     }
 
     function addSymbol(symbol) {
@@ -687,6 +713,8 @@ Panel {
                 setShowPrice(!showPrice);
             else if (settingsCursor === 2)
                 setShowChange(!showChange);
+            else if (settingsCursor === lastUpdatedSettingsIndex)
+                setShowLastUpdated(!showLastUpdated);
             return;
         }
         if (view === "detail") {
@@ -737,6 +765,8 @@ Panel {
                     setChangeStyle(dx > 0 ? "dollars" : "percent");
                 else if (settingsCursor === refreshSettingsIndex)
                     setRefreshSeconds(refreshSeconds + dx * 15);
+                else if (settingsCursor === lastUpdatedSettingsIndex)
+                    setShowLastUpdated(dx > 0);
                 else if (settingsCursor === barSectionSettingsIndex) {
                     var sections = ["left", "center", "right"];
                     var i = sections.indexOf(barSection);
@@ -952,8 +982,8 @@ Panel {
         interval: root.backgroundRefreshMs
         running: root.showBarQuote && !root.opened
         repeat: true
-        triggeredOnStart: true
-        onTriggered: root.refresh()
+        onTriggered: if (!quoteProc.running)
+            root.refresh()
     }
 
     Timer {
@@ -961,8 +991,8 @@ Panel {
         interval: root.liveRefreshMs
         running: root.opened
         repeat: true
-        triggeredOnStart: true
-        onTriggered: root.refresh()
+        onTriggered: if (!quoteProc.running)
+            root.refresh()
     }
 
     Timer {

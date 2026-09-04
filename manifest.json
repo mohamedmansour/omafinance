@@ -23,6 +23,7 @@
       "showTicker": true,
       "showPrice": true,
       "showChange": true,
+      "showLastUpdated": false,
       "barSection": "right",
       "changeStyle": "percent"
     },
@@ -44,6 +45,12 @@
         "type": "boolean",
         "label": "Show percentage change",
         "defaultValue": true
+      },
+      {
+        "key": "showLastUpdated",
+        "type": "boolean",
+        "label": "Show last updated time",
+        "defaultValue": false
       },
       {
         "key": "barSection",

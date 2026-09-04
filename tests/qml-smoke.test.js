@@ -30,6 +30,24 @@ test("panel composes the extracted views", () => {
   assert.match(panel, /backoffDelay\(2000, quoteFailureCount, 60000\)/)
 })
 
+test("panel presents before scheduling one non-blocking open refresh", () => {
+  const panel = fs.readFileSync(path.join(root, "Panel.qml"), "utf8")
+
+  assert.doesNotMatch(panel, /stateFile\.reload\(\)/)
+  assert.match(panel, /function open\(\)[\s\S]*?root\.controller\.show\(\);\s*scheduleOpenRefresh\(\);/)
+  assert.match(panel, /function toggle\(\)[\s\S]*?else\s*root\.open\(\);/)
+  assert.match(panel, /function scheduleOpenRefresh\(\)[\s\S]*?Qt\.callLater/)
+  assert.match(panel, /function scheduleBarRefresh\(\)[\s\S]*?root\.showBarData && !quoteProc\.running/)
+  assert.doesNotMatch(panel, /triggeredOnStart:\s*true/)
+})
+
+test("background quote refreshes do not show updating status", () => {
+  const panel = fs.readFileSync(path.join(root, "Panel.qml"), "utf8")
+
+  assert.doesNotMatch(panel, /Updating quotes/)
+  assert.match(panel, /quoteProc\.running\)\s*return hasQuotes \? "" : "Loading quotes…";/)
+})
+
 test("detail loading is a delayed icon beside the ticker", () => {
   const panel = fs.readFileSync(path.join(root, "Panel.qml"), "utf8")
   const detail = fs.readFileSync(path.join(root, "FinanceDetailView.qml"), "utf8")
@@ -83,6 +101,8 @@ test("change style follows the show-change setting and precedes refresh", () => 
 test("manifest entry points exist", () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(root, "manifest.json"), "utf8"))
   assert.equal(manifest.id, "mohamedmansour.finance")
+  assert.equal(manifest.barWidget.defaults.showLastUpdated, false)
+  assert.equal(manifest.barWidget.schema.find(item => item.key === "showLastUpdated").defaultValue, false)
   for (const entry of Object.values(manifest.entryPoints))
     assert.equal(fs.existsSync(path.join(root, entry)), true, `missing ${entry}`)
 })

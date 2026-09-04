@@ -112,6 +112,17 @@ Column {
         }
     }
 
+    Toggle {
+        width: parent.width
+        label: "Show last updated time"
+        description: "Show the latest quote refresh time above the watchlist."
+        checked: controller.showLastUpdated
+        hasCursor: controller.settingsCursor === controller.lastUpdatedSettingsIndex
+        foreground: controller.contentForeground
+        fontFamily: controller.contentFontFamily
+        onClicked: controller.setShowLastUpdated(!controller.showLastUpdated)
+    }
+
     Text {
         text: "Bar position"
         color: Qt.darker(controller.contentForeground, 1.4)
