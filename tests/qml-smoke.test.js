@@ -84,6 +84,19 @@ test("detail loading is a delayed icon beside the ticker", () => {
   assert.ok(status === -1 || spinner < status)
 })
 
+test("detail enrichment uses a bounded five-minute cache", () => {
+  const panel = fs.readFileSync(path.join(root, "Panel.qml"), "utf8")
+
+  assert.match(panel, /detailCacheTtlMs:\s*300000/)
+  assert.match(panel, /detailCacheLimit:\s*16/)
+  assert.match(panel, /function restoreDetailCache\(symbol\)/)
+  assert.match(panel, /restoreDetailCache\(next\);\s*fetchDetail\(\);/)
+  assert.match(panel, /cacheDetailData\(root\.insightsFetchSymbol, "insights"/)
+  assert.match(panel, /cacheDetailData\(root\.quotePageFetchSymbol, "page"/)
+  assert.match(panel, /if \(insightsLoaded\)\s*return;/)
+  assert.match(panel, /if \(quotePageLoaded\)\s*return;/)
+})
+
 test("detail header stacks small ticker, company name, then price", () => {
   const detail = fs.readFileSync(path.join(root, "FinanceDetailView.qml"), "utf8")
   const ticker = detail.indexOf("id: tickerLabel")

@@ -45,6 +45,10 @@ Panel {
     property bool quotePageLoaded: false
     property var detailPage: ({})
     property var detailInsights: ({})
+    property var detailCache: ({})
+    property var detailCacheOrder: []
+    readonly property int detailCacheTtlMs: 300000
+    readonly property int detailCacheLimit: 16
     property string searchQuery: ""
     property var suggestions: []
     property int suggestionIndex: 0
@@ -502,8 +506,59 @@ Panel {
         quotePageLoaded = false;
         detailPage = ({});
         detailInsights = ({});
+        restoreDetailCache(next);
         fetchDetail();
         return true;
+    }
+
+    function detailCacheKey(symbol) {
+        return Model.normalizeSymbol(symbol);
+    }
+
+    function cacheDetailData(symbol, field, value) {
+        var key = detailCacheKey(symbol);
+        if (!key)
+            return;
+        var existing = detailCache[key] || {};
+        var entry = {
+            page: existing.page || ({}),
+            pageStoredAt: existing.pageStoredAt || 0,
+            insights: existing.insights || ({}),
+            insightsStoredAt: existing.insightsStoredAt || 0
+        };
+        entry[field] = value;
+        entry[field + "StoredAt"] = Date.now();
+
+        var nextCache = {};
+        var nextOrder = [];
+        for (var i = 0; i < detailCacheOrder.length; i++) {
+            var existingKey = detailCacheOrder[i];
+            if (existingKey !== key && detailCache[existingKey]) {
+                nextCache[existingKey] = detailCache[existingKey];
+                nextOrder.push(existingKey);
+            }
+        }
+        nextCache[key] = entry;
+        nextOrder.push(key);
+        while (nextOrder.length > detailCacheLimit)
+            delete nextCache[nextOrder.shift()];
+        detailCache = nextCache;
+        detailCacheOrder = nextOrder;
+    }
+
+    function restoreDetailCache(symbol) {
+        var entry = detailCache[detailCacheKey(symbol)];
+        if (!entry)
+            return;
+        var now = Date.now();
+        if (entry.insightsStoredAt > 0 && now - entry.insightsStoredAt <= detailCacheTtlMs) {
+            detailInsights = entry.insights;
+            insightsLoaded = true;
+        }
+        if (entry.pageStoredAt > 0 && now - entry.pageStoredAt <= detailCacheTtlMs) {
+            detailPage = entry.page;
+            quotePageLoaded = true;
+        }
     }
 
     function prefetchDetail(symbol) {
@@ -566,6 +621,8 @@ Panel {
     function fetchInsights() {
         if (!detailSymbol)
             return;
+        if (insightsLoaded)
+            return;
         if (insightsProc.running)
             return;
         insightsFetchSymbol = detailSymbol;
@@ -576,6 +633,8 @@ Panel {
 
     function fetchQuotePage() {
         if (!detailSymbol)
+            return;
+        if (quotePageLoaded)
             return;
         if (quotePageProc.running)
             return;
@@ -980,6 +1039,7 @@ Panel {
                 var raw = String(insightsStdout.text || "").trim();
                 if (exitCode === 0 && Model.isInsightsResponse(raw)) {
                     root.detailInsights = Model.parseInsights(raw);
+                    root.cacheDetailData(root.insightsFetchSymbol, "insights", root.detailInsights);
                     root.insightsFailureCount = 0;
                     root.insightsError = "";
                     root.insightsLoaded = true;
@@ -1005,6 +1065,7 @@ Panel {
                 var raw = String(quotePageStdout.text || "").trim();
                 if (exitCode === 0 && raw) {
                     root.detailPage = Model.parseQuotePage(raw);
+                    root.cacheDetailData(root.quotePageFetchSymbol, "page", root.detailPage);
                     root.quotePageFailureCount = 0;
                     root.quotePageError = "";
                     root.quotePageLoaded = true;
