@@ -45,7 +45,10 @@ test("background quote refreshes do not show updating status", () => {
   const panel = fs.readFileSync(path.join(root, "Panel.qml"), "utf8")
 
   assert.doesNotMatch(panel, /Updating quotes/)
+  assert.doesNotMatch(panel, /Updating chart/)
   assert.match(panel, /quoteProc\.running\)\s*return hasQuotes \? "" : "Loading quotes…";/)
+  assert.match(panel, /chartProc\.running && currentFetch\)\s*return rangeChart \? "" : "Loading chart…";/)
+  assert.match(panel, /return showLastUpdated && chartUpdatedAt > 0 && detailQuote \? "Last updated "/)
 })
 
 test("detail loading is a delayed icon beside the ticker", () => {
@@ -69,6 +72,21 @@ test("detail loading is a delayed icon beside the ticker", () => {
   assert.ok(status === -1 || spinner < status)
 })
 
+test("detail header stacks small ticker, company name, then price", () => {
+  const detail = fs.readFileSync(path.join(root, "FinanceDetailView.qml"), "utf8")
+  const ticker = detail.indexOf("id: tickerLabel")
+  const company = detail.indexOf("id: companyName")
+  const price = detail.indexOf("Model.formatPrice(controller.detailMainPrice")
+
+  assert.notEqual(ticker, -1)
+  assert.notEqual(company, -1)
+  assert.notEqual(price, -1)
+  assert.ok(ticker < company)
+  assert.ok(company < price)
+  assert.match(detail, /id:\s*tickerLabel[\s\S]*?font\.pixelSize:\s*Style\.font\.body[\s\S]*?font\.bold:\s*true/)
+  assert.match(detail, /id:\s*companyName[\s\S]*?font\.pixelSize:\s*Style\.font\.display/)
+})
+
 test("watchlist pointer-down prefetches details without duplicating the click fetch", () => {
   const panel = fs.readFileSync(path.join(root, "Panel.qml"), "utf8")
   const list = fs.readFileSync(path.join(root, "FinanceListView.qml"), "utf8")
@@ -81,8 +99,11 @@ test("watchlist pointer-down prefetches details without duplicating the click fe
 
 test("detail price changes use tone-colored text without pill backgrounds", () => {
   const detail = fs.readFileSync(path.join(root, "FinanceDetailView.qml"), "utf8")
+  const price = detail.indexOf("Model.formatPrice(controller.detailMainPrice")
+  const change = detail.indexOf("id: detailChange")
 
   assert.doesNotMatch(detail, /pillFill\(/)
+  assert.ok(price < change)
   assert.match(detail, /id:\s*detailChange[\s\S]*?color:\s*controller\.toneColor\(controller\.shownMainChange\)/)
   assert.match(detail, /id:\s*extChange[\s\S]*?color:\s*controller\.toneColor\(controller\.sessionQuote \? controller\.sessionQuote\.extendedChangePercent : null\)/)
 })

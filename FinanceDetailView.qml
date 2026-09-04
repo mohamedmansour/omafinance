@@ -109,6 +109,7 @@ Column {
     }
 
     Column {
+        id: detailHeader
         width: parent.width
         spacing: Style.space(2)
 
@@ -119,15 +120,16 @@ Column {
                 id: tickerLabel
                 textFormat: Text.PlainText
                 text: controller.detailSymbol
-                color: controller.contentForeground
+                color: controller.dim
                 font.family: controller.contentFontFamily
-                font.pixelSize: Style.font.heading
+                font.pixelSize: Style.font.body
                 font.bold: true
             }
 
             Item {
+                id: detailsSpinnerSlot
                 visible: detailViewRoot.showDetailsSpinner
-                width: Style.font.body
+                width: visible ? Style.font.body : 0
                 height: tickerLabel.height
 
                 Canvas {
@@ -162,12 +164,16 @@ Column {
                 }
             }
         }
+
         Text {
+            id: companyName
+            width: parent.width
             textFormat: Text.PlainText
             text: controller.activeQuote && controller.activeQuote.name ? controller.activeQuote.name : ""
-            color: controller.dim
+            color: controller.contentForeground
             font.family: controller.contentFontFamily
-            font.pixelSize: Style.font.body
+            font.pixelSize: Style.font.display
+            elide: Text.ElideRight
         }
     }
 
@@ -189,8 +195,8 @@ Column {
             width: controller.showExtended ? (parent.width - parent.spacing) / 2 : parent.width
             spacing: Style.space(6)
 
-            Row {
-                spacing: Style.space(12)
+            Column {
+                spacing: Style.space(2)
 
                 Text {
                     textFormat: Text.PlainText
@@ -203,7 +209,6 @@ Column {
 
                 Text {
                     id: detailChange
-                    anchors.verticalCenter: parent.verticalCenter
                     textFormat: Text.PlainText
                     text: Model.formatChangePair(controller.shownMainChange, controller.shownMainChangeAmount, controller.detailMainPrice, controller.activeQuote ? controller.activeQuote.currency : "USD", controller.activeQuote ? controller.activeQuote.priceHint : 2)
                     color: controller.toneColor(controller.shownMainChange)
@@ -227,8 +232,8 @@ Column {
             width: (parent.width - parent.spacing) / 2
             spacing: Style.space(6)
 
-            Row {
-                spacing: Style.space(12)
+            Column {
+                spacing: Style.space(2)
 
                 Text {
                     textFormat: Text.PlainText
@@ -241,7 +246,6 @@ Column {
 
                 Text {
                     id: extChange
-                    anchors.verticalCenter: parent.verticalCenter
                     textFormat: Text.PlainText
                     text: controller.sessionQuote ? Model.formatChangePair(controller.sessionQuote.extendedChangePercent, controller.extendedChangeAmount, controller.sessionQuote.extendedPrice, controller.sessionQuote.currency, controller.sessionQuote.priceHint) : "-"
                     color: controller.toneColor(controller.sessionQuote ? controller.sessionQuote.extendedChangePercent : null)

@@ -112,10 +112,10 @@ Panel {
     readonly property string chartStatusText: {
         var currentFetch = chartFetchSymbol === detailSymbol && chartFetchRange === detailRange;
         if (chartProc.running && currentFetch)
-            return rangeChart ? "Updating chart…" : "Loading chart…";
+            return rangeChart ? "" : "Loading chart…";
         if (chartError)
             return chartError;
-        return chartUpdatedAt > 0 && detailQuote ? "Chart updated " + timeLabel(chartUpdatedAt) : "";
+        return showLastUpdated && chartUpdatedAt > 0 && detailQuote ? "Last updated " + timeLabel(chartUpdatedAt) : "";
     }
     readonly property bool detailDataLoading: {
         var loadingInsights = insightsProc.running && insightsFetchSymbol === detailSymbol && !insightsLoaded;

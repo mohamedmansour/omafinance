@@ -115,7 +115,7 @@ Column {
     Toggle {
         width: parent.width
         label: "Show last updated time"
-        description: "Show the latest quote refresh time above the watchlist."
+        description: "Show refresh times in the watchlist and detail views."
         checked: controller.showLastUpdated
         hasCursor: controller.settingsCursor === controller.lastUpdatedSettingsIndex
         foreground: controller.contentForeground
