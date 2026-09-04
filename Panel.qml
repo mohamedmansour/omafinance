@@ -49,12 +49,17 @@ Panel {
   readonly property color upFill: Qt.rgba(upColor.r, upColor.g, upColor.b, 1)
   readonly property color downFill: Qt.rgba(downColor.r, downColor.g, downColor.b, 1)
   readonly property int refreshSeconds: Math.max(15, parseInt(setting("refreshSeconds", 60), 10) || 60)
-  readonly property bool showOnBar: setting("showOnBar", true) !== false
   readonly property string changeStyle: {
     var s = String(setting("changeStyle", "percent") || "percent")
     if (s === "percent" || s === "dollars") return s
     return "percent"
   }
+  readonly property bool legacyShowOnBar: setting("showOnBar", true) !== false
+  readonly property bool showTicker: setting("showTicker", legacyShowOnBar) !== false
+  readonly property bool showPrice: setting("showPrice", legacyShowOnBar) !== false
+  readonly property bool showChange: setting("showChange", legacyShowOnBar) !== false
+  readonly property bool showBarData: showTicker || showPrice || showChange
+  readonly property bool showBarQuote: showPrice || showChange
   readonly property string barSection: {
     var s = String(setting("barSection", "right") || "right")
     if (s === "left" || s === "center" || s === "right") return s
@@ -62,8 +67,8 @@ Panel {
   }
   readonly property string barSymbol: Model.barSymbol(pinned, watchlist, pinIndex)
   readonly property var pinnedQuote: quotes[barSymbol] || null
-  readonly property string label: Model.barLabel(barSymbol, pinnedQuote, false, changeStyle)
-  readonly property string verticalLabel: Model.barLabel(barSymbol, pinnedQuote, true, changeStyle)
+  readonly property string label: Model.barLabel(barSymbol, pinnedQuote, false, showTicker, showPrice, showChange, changeStyle)
+  readonly property string verticalLabel: Model.barLabel(barSymbol, pinnedQuote, true, showTicker, showPrice, showChange, changeStyle)
   readonly property string labelTone: Model.changeTone(pinnedQuote ? pinnedQuote.changePercent : null)
   readonly property var detailRanges: Model.chartRanges()
   readonly property var activeQuote: quotes[detailSymbol] || detailQuote
@@ -224,8 +229,16 @@ Panel {
       root.bar.shell.updateEntryInline(root.moduleName, entry)
   }
 
-  function setShowOnBar(enabled) {
-    persistSettings({ showOnBar: !!enabled })
+  function setShowTicker(enabled) {
+    persistSettings({ showTicker: !!enabled })
+  }
+
+  function setShowPrice(enabled) {
+    persistSettings({ showPrice: !!enabled })
+  }
+
+  function setShowChange(enabled) {
+    persistSettings({ showChange: !!enabled })
   }
 
   function setRefreshSeconds(value) {
@@ -476,7 +489,9 @@ Panel {
 
   function activateCursor() {
     if (view === "settings") {
-      if (settingsCursor === 0) setShowOnBar(!showOnBar)
+      if (settingsCursor === 0) setShowTicker(!showTicker)
+      else if (settingsCursor === 1) setShowPrice(!showPrice)
+      else if (settingsCursor === 2) setShowChange(!showChange)
       return
     }
     if (view === "detail") {
@@ -509,12 +524,14 @@ Panel {
 
   function moveFocus(dx, dy) {
     if (view === "settings") {
-      if (dy !== 0) settingsCursor = Math.max(0, Math.min(3, settingsCursor + dy))
+      if (dy !== 0) settingsCursor = Math.max(0, Math.min(5, settingsCursor + dy))
       if (dx !== 0) {
-        if (settingsCursor === 0) setShowOnBar(dx > 0)
-        else if (settingsCursor === 1) setRefreshSeconds(refreshSeconds + dx * 15)
-        else if (settingsCursor === 2) setChangeStyle(dx > 0 ? "dollars" : "percent")
-        else if (settingsCursor === 3) {
+        if (settingsCursor === 0) setShowTicker(dx > 0)
+        else if (settingsCursor === 1) setShowPrice(dx > 0)
+        else if (settingsCursor === 2) setShowChange(dx > 0)
+        else if (settingsCursor === 3) setRefreshSeconds(refreshSeconds + dx * 15)
+        else if (settingsCursor === 4) setChangeStyle(dx > 0 ? "dollars" : "percent")
+        else if (settingsCursor === 5) {
           var sections = ["left", "center", "right"]
           var i = sections.indexOf(barSection)
           if (i < 0) i = 2
@@ -657,7 +674,7 @@ Panel {
   Timer {
     id: refreshTimer
     interval: root.refreshSeconds * 1000
-    running: root.showOnBar && !root.opened
+    running: root.showBarQuote && !root.opened
     repeat: true
     triggeredOnStart: true
     onTriggered: root.refresh()
@@ -679,7 +696,7 @@ Panel {
   Timer {
     id: pinRotateTimer
     interval: 5000
-    running: root.showOnBar && (root.pinned || []).length > 1
+    running: root.showBarData && (root.pinned || []).length > 1
     repeat: true
     onTriggered: root.pinIndex = root.pinIndex + 1
   }
@@ -1107,13 +1124,35 @@ Panel {
 
             Toggle {
               width: parent.width
-              label: "Show ticker on bar"
-              description: "When off, the bar shows a compact icon and quotes are fetched only while this panel is open."
-              checked: root.showOnBar
+              label: "Show ticker symbol"
+              description: "Show the market symbol on the bar."
+              checked: root.showTicker
               hasCursor: root.settingsCursor === 0
               foreground: root.contentForeground
               fontFamily: root.contentFontFamily
-              onClicked: root.setShowOnBar(!root.showOnBar)
+              onClicked: root.setShowTicker(!root.showTicker)
+            }
+
+            Toggle {
+              width: parent.width
+              label: "Show price"
+              description: "Show the latest price on the bar."
+              checked: root.showPrice
+              hasCursor: root.settingsCursor === 1
+              foreground: root.contentForeground
+              fontFamily: root.contentFontFamily
+              onClicked: root.setShowPrice(!root.showPrice)
+            }
+
+            Toggle {
+              width: parent.width
+              label: "Show change"
+              description: "Show the percentage change on the bar."
+              checked: root.showChange
+              hasCursor: root.settingsCursor === 2
+              foreground: root.contentForeground
+              fontFamily: root.contentFontFamily
+              onClicked: root.setShowChange(!root.showChange)
             }
 
             NumberField {
@@ -1123,7 +1162,7 @@ Panel {
               from: 15
               to: 3600
               stepSize: 15
-              hasCursor: root.settingsCursor === 1
+              hasCursor: root.settingsCursor === 3
               foreground: root.contentForeground
               fontFamily: root.contentFontFamily
               onModified: function(v) { root.setRefreshSeconds(v) }
@@ -1143,7 +1182,7 @@ Panel {
               fontSize: Style.font.bodySmall
               value: root.changeStyle
               focusable: false
-              cursorIndex: root.settingsCursor === 2 ? ["percent", "dollars"].indexOf(root.changeStyle) : -1
+              cursorIndex: root.settingsCursor === 4 ? ["percent", "dollars"].indexOf(root.changeStyle) : -1
               options: [
                 { value: "percent", label: "Percent" },
                 { value: "dollars", label: "Dollars" }
@@ -1165,7 +1204,7 @@ Panel {
               fontSize: Style.font.bodySmall
               value: root.barSection
               focusable: false
-              cursorIndex: root.settingsCursor === 3 ? ["left", "center", "right"].indexOf(root.barSection) : -1
+              cursorIndex: root.settingsCursor === 5 ? ["left", "center", "right"].indexOf(root.barSection) : -1
               options: [
                 { value: "left", label: "Left" },
                 { value: "center", label: "Center" },

@@ -8,7 +8,7 @@
 
 ## Features
 
-- **Bar pill** - pinned ticker(s) and % change, on the right of the bar
+- **Bar pill** - pinned ticker(s), current price, and % change in bold, on the right of the bar
 - **After hours** - watchlist uses the latest pre/post print; 1D detail shows After Hours next to the close
 - **Watchlist** - symbol, name, sparkline, price, and change pill
 - **Search** - look up a ticker, open it, then Favorite to keep it
@@ -26,7 +26,7 @@ No API key. Quotes come from Yahoo Finance.
 omarchy plugin add https://github.com/mohamedmansour/omafinance.git --enable
 ```
 
-Omafinance lands on the right of the bar (next to network / audio). A gear in the panel opens settings: show or hide the live ticker, and background refresh. While the panel is open, quotes refresh every second.
+Omafinance lands on the right of the bar (next to network / audio). A gear in the panel opens settings: independently show or hide the ticker symbol, price, and percentage change, and configure background refresh. While the panel is open, quotes refresh every second.
 
 ## Update
 

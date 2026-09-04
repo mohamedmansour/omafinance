@@ -511,12 +511,20 @@ function changeTone(pct) {
   return n > 0 ? "up" : "down"
 }
 
-function barLabel(pinned, quote, vertical, style) {
+function barLabel(pinned, quote, vertical, showTicker, showPrice, showChange, style) {
   var symbol = normalizeSymbol(pinned)
   if (!symbol) return "$"
-  var change = quote ? formatQuoteChange(quote, style) : ""
-  if (!change || change === "-") return symbol
-  return vertical ? (symbol + "\n" + change) : (symbol + "  " + change)
+  var parts = []
+  if (showTicker !== false) parts.push(symbol)
+  var hasPrice = quote && quote.price !== null && quote.price !== undefined
+  var hasChange = quote && (style === "dollars"
+    ? quote.change !== null && quote.change !== undefined
+    : quote.changePercent !== null && quote.changePercent !== undefined)
+  var price = hasPrice ? formatPrice(quote.price, quote.currency, quote.priceHint) : ""
+  var change = hasChange ? formatQuoteChange(quote, style) : ""
+  if (showPrice !== false && price && price !== "-") parts.push(price)
+  if (showChange !== false && change && change !== "-") parts.push(change)
+  return parts.length ? parts.join(vertical ? "\n" : "  ") : "$"
 }
 
 function suggestionMeta(row) {

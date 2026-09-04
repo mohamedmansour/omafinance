@@ -20,15 +20,29 @@
     "defaultSection": "right",
     "defaults": {
       "refreshSeconds": 60,
-      "showOnBar": true,
+      "showTicker": true,
+      "showPrice": true,
+      "showChange": true,
       "barSection": "right",
       "changeStyle": "percent"
     },
     "schema": [
       {
-        "key": "showOnBar",
+        "key": "showTicker",
         "type": "boolean",
-        "label": "Show ticker on bar",
+        "label": "Show ticker symbol",
+        "defaultValue": true
+      },
+      {
+        "key": "showPrice",
+        "type": "boolean",
+        "label": "Show price",
+        "defaultValue": true
+      },
+      {
+        "key": "showChange",
+        "type": "boolean",
+        "label": "Show percentage change",
         "defaultValue": true
       },
       {
