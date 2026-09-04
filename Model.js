@@ -409,7 +409,7 @@ function priceDecimals(price, hint) {
 
 function formatPrice(price, currency, hint) {
   var n = Number(price)
-  if (!isFinite(n)) return "—"
+  if (!isFinite(n)) return "-"
   var body = withCommas(n.toFixed(priceDecimals(n, hint)))
   var code = String(currency || "USD")
   if (code === "USD") return "$" + body
@@ -418,14 +418,14 @@ function formatPrice(price, currency, hint) {
 
 function formatPercent(pct) {
   var n = Number(pct)
-  if (!isFinite(n)) return "—"
+  if (!isFinite(n)) return "-"
   var sign = n > 0 ? "+" : ""
   return sign + n.toFixed(2) + "%"
 }
 
 function formatCompact(value) {
   var n = Number(value)
-  if (!isFinite(n)) return "—"
+  if (!isFinite(n)) return "-"
   var abs = Math.abs(n)
   if (abs >= 1e12) return (n / 1e12).toFixed(2) + "T"
   if (abs >= 1e9) return (n / 1e9).toFixed(2) + "B"
@@ -444,7 +444,7 @@ function barLabel(pinned, quote, vertical) {
   var symbol = normalizeSymbol(pinned)
   if (!symbol) return "$"
   var pct = quote ? formatPercent(quote.changePercent) : ""
-  if (!pct || pct === "—") return symbol
+  if (!pct || pct === "-") return symbol
   return vertical ? (symbol + "\n" + pct) : (symbol + "  " + pct)
 }
 
@@ -582,14 +582,14 @@ function formatIsoDate(iso) {
 
 function yieldPercent(value) {
   var n = Number(value)
-  if (!isFinite(n) || n === 0) return "—"
+  if (!isFinite(n) || n === 0) return "-"
   if (n > 0 && n <= 1) n = n * 100
   return n.toFixed(2) + "%"
 }
 
 function formatRatio(value) {
   var n = Number(value)
-  if (!isFinite(n)) return "—"
+  if (!isFinite(n)) return "-"
   return n.toFixed(2)
 }
 
@@ -615,15 +615,15 @@ function buildDetailStats(quote, page, insights) {
   var rows = []
   function add(label, value) {
     if (value === undefined || value === null || value === "") return
-    if (value === "—") return
+    if (value === "-") return
     rows.push({ label: label, value: String(value) })
   }
 
   add("MARKET CAP", page.marketCap ? formatCompact(page.marketCap) : "")
-  add("P/E", formatRatio(page.trailingPE) !== "—" ? formatRatio(page.trailingPE) : "")
-  add("FWD P/E", formatRatio(page.forwardPE) !== "—" ? formatRatio(page.forwardPE) : "")
+  add("P/E", formatRatio(page.trailingPE) !== "-" ? formatRatio(page.trailingPE) : "")
+  add("FWD P/E", formatRatio(page.forwardPE) !== "-" ? formatRatio(page.forwardPE) : "")
   add("EPS", page.trailingEps != null && isFinite(Number(page.trailingEps)) ? Number(page.trailingEps).toFixed(2) : "")
-  add("DIV YIELD", yieldPercent(page.dividendYield) !== "—" ? yieldPercent(page.dividendYield) : "")
+  add("DIV YIELD", yieldPercent(page.dividendYield) !== "-" ? yieldPercent(page.dividendYield) : "")
   add("DIV RATE", page.dividendRate ? formatPrice(page.dividendRate, quote.currency || "USD", 2) : "")
   add("EX-DIVIDEND", page.exDividendDate ? formatIsoDate(page.exDividendDate) : "")
   var nextDiv = nextDividendIso(page.exDividendDate)
@@ -635,7 +635,7 @@ function buildDetailStats(quote, page, insights) {
   add("52W HIGH", quote.fiftyTwoWeekHigh ? formatPrice(quote.fiftyTwoWeekHigh, quote.currency, quote.priceHint) : "")
   add("52W LOW", quote.fiftyTwoWeekLow ? formatPrice(quote.fiftyTwoWeekLow, quote.currency, quote.priceHint) : "")
   add("AVG VOLUME", page.averageVolume ? formatCompact(page.averageVolume) : "")
-  add("BETA", formatRatio(page.beta) !== "—" ? formatRatio(page.beta) : "")
+  add("BETA", formatRatio(page.beta) !== "-" ? formatRatio(page.beta) : "")
   var target = insights.targetPrice || page.targetMeanPrice
   add("TARGET", target ? formatPrice(target, quote.currency || "USD", 2) : "")
   add("RATING", insights.rating ? String(insights.rating).toUpperCase() : "")

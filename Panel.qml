@@ -984,7 +984,7 @@ Panel {
                         width: parent.width
                         horizontalAlignment: Text.AlignRight
                         elide: Text.ElideRight
-                        text: quote ? Model.formatPrice(quote.price, quote.currency, quote.priceHint) : "—"
+                        text: quote ? Model.formatPrice(quote.price, quote.currency, quote.priceHint) : "-"
                         color: root.contentForeground
                         font.family: root.contentFontFamily
                         font.pixelSize: Style.font.body
@@ -1001,7 +1001,7 @@ Panel {
                           id: changeLabel
                           anchors.centerIn: parent
                           textFormat: Text.PlainText
-                          text: quote ? Model.formatPercent(quote.changePercent) : "—"
+                          text: quote ? Model.formatPercent(quote.changePercent) : "-"
                           color: root.contentForeground
                           font.family: root.contentFontFamily
                           font.pixelSize: Style.font.bodySmall
@@ -1221,7 +1221,7 @@ Panel {
 
                   Text {
                     textFormat: Text.PlainText
-                    text: root.activeQuote ? Model.formatPrice(root.detailMainPrice, root.activeQuote.currency, root.activeQuote.priceHint) : "—"
+                    text: root.activeQuote ? Model.formatPrice(root.detailMainPrice, root.activeQuote.currency, root.activeQuote.priceHint) : "-"
                     color: root.contentForeground
                     font.family: root.contentFontFamily
                     font.pixelSize: Style.font.display
@@ -1267,7 +1267,7 @@ Panel {
 
                   Text {
                     textFormat: Text.PlainText
-                    text: root.sessionQuote ? Model.formatPrice(root.sessionQuote.extendedPrice, root.sessionQuote.currency, root.sessionQuote.priceHint) : "—"
+                    text: root.sessionQuote ? Model.formatPrice(root.sessionQuote.extendedPrice, root.sessionQuote.currency, root.sessionQuote.priceHint) : "-"
                     color: root.contentForeground
                     font.family: root.contentFontFamily
                     font.pixelSize: Style.font.display
@@ -1285,7 +1285,7 @@ Panel {
                       id: extChange
                       anchors.centerIn: parent
                       textFormat: Text.PlainText
-                      text: root.sessionQuote ? Model.formatPercent(root.sessionQuote.extendedChangePercent) : "—"
+                      text: root.sessionQuote ? Model.formatPercent(root.sessionQuote.extendedChangePercent) : "-"
                       color: root.contentForeground
                       font.family: root.contentFontFamily
                       font.pixelSize: Style.font.body
@@ -1365,7 +1365,7 @@ Panel {
                 }
                 Text {
                   textFormat: Text.PlainText
-                  text: root.activeQuote ? Model.formatPrice(root.activeQuote.open, root.activeQuote.currency, root.activeQuote.priceHint) : "—"
+                  text: root.activeQuote ? Model.formatPrice(root.activeQuote.open, root.activeQuote.currency, root.activeQuote.priceHint) : "-"
                   color: root.contentForeground
                   font.family: root.contentFontFamily
                   font.pixelSize: Style.font.title
@@ -1383,7 +1383,7 @@ Panel {
                 }
                 Text {
                   textFormat: Text.PlainText
-                  text: root.activeQuote ? Model.formatPrice(root.activeQuote.dayHigh, root.activeQuote.currency, root.activeQuote.priceHint) : "—"
+                  text: root.activeQuote ? Model.formatPrice(root.activeQuote.dayHigh, root.activeQuote.currency, root.activeQuote.priceHint) : "-"
                   color: root.contentForeground
                   font.family: root.contentFontFamily
                   font.pixelSize: Style.font.title
@@ -1401,7 +1401,7 @@ Panel {
                 }
                 Text {
                   textFormat: Text.PlainText
-                  text: root.activeQuote ? Model.formatPrice(root.activeQuote.dayLow, root.activeQuote.currency, root.activeQuote.priceHint) : "—"
+                  text: root.activeQuote ? Model.formatPrice(root.activeQuote.dayLow, root.activeQuote.currency, root.activeQuote.priceHint) : "-"
                   color: root.contentForeground
                   font.family: root.contentFontFamily
                   font.pixelSize: Style.font.title
@@ -1419,7 +1419,7 @@ Panel {
                 }
                 Text {
                   textFormat: Text.PlainText
-                  text: root.activeQuote ? Model.formatCompact(root.activeQuote.volume) : "—"
+                  text: root.activeQuote ? Model.formatCompact(root.activeQuote.volume) : "-"
                   color: root.contentForeground
                   font.family: root.contentFontFamily
                   font.pixelSize: Style.font.title

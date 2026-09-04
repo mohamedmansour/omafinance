@@ -1,6 +1,6 @@
 # Omafinance
 
-**Omafinance** is an Omarchy bar watchlist for stocks and crypto. A pinned ticker (or a rotating set) lives on the bar; click it for sparklines, search-to-favorite, range charts, and fundamentals — no API key.
+**Omafinance** is an Omarchy bar watchlist for stocks and crypto. A pinned ticker (or a rotating set) lives on the bar; click it for sparklines, search-to-favorite, range charts, and fundamentals - no API key.
 
 | Watchlist | Detail |
 | :-------: | :----: |
@@ -8,15 +8,15 @@
 
 ## Features
 
-- **Bar pill** — pinned ticker(s) and % change, on the right of the bar
-- **After hours** — watchlist uses the latest pre/post print; 1D detail shows After Hours next to the close
-- **Watchlist** — symbol, name, sparkline, price, and change pill
-- **Search** — look up a ticker, open it, then Favorite to keep it
-- **Crypto** — Yahoo-style symbols such as `BTC-USD` and `ETH-USD`
-- **Pin rotation** — pin several tickers; the bar cycles them every 5 seconds
-- **Detail chart** — `1D` `1W` `1M` `YTD` `1Y` `5Y` `All`, with range % and hover price
-- **Fundamentals** — market cap, P/E, dividends, next earnings, 52-week range, target, rating
-- **Remembered prefs** — watchlist, pins, and last chart range
+- **Bar pill** - pinned ticker(s) and % change, on the right of the bar
+- **After hours** - watchlist uses the latest pre/post print; 1D detail shows After Hours next to the close
+- **Watchlist** - symbol, name, sparkline, price, and change pill
+- **Search** - look up a ticker, open it, then Favorite to keep it
+- **Crypto** - Yahoo-style symbols such as `BTC-USD` and `ETH-USD`
+- **Pin rotation** - pin several tickers; the bar cycles them every 5 seconds
+- **Detail chart** - `1D` `1W` `1M` `YTD` `1Y` `5Y` `All`, with range % and hover price
+- **Fundamentals** - market cap, P/E, dividends, next earnings, 52-week range, target, rating
+- **Remembered prefs** - watchlist, pins, and last chart range
 
 No API key. Quotes come from Yahoo Finance.
 
@@ -36,7 +36,7 @@ Updates follow git. After new commits are on GitHub:
 omarchy plugin update mohamedmansour.finance
 ```
 
-You will see a diff, then a fast-forward. The `version` field in `manifest.json` is only a label — you do not need a new version number for the updater to run.
+You will see a diff, then a fast-forward. The `version` field in `manifest.json` is only a label - you do not need a new version number for the updater to run.
 
 Update every git-managed plugin:
 

@@ -73,7 +73,7 @@ BarWidget {
     anchors.fill: parent
     bar: root.bar
     text: {
-      if (!panelLoader.item) return "—"
+      if (!panelLoader.item) return "-"
       if (!root.showTicker) return "$"
       return root.vertical ? panelLoader.item.verticalLabel : panelLoader.item.label
     }
