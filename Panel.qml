@@ -35,6 +35,10 @@ Panel {
   property string searchPendingQuery: ""
   property string searchActiveQuery: ""
   property bool searching: false
+  property string listChrome: "rows"
+  property int settingsCursor: 0
+  property int detailSection: 0
+  property int detailActionIndex: 0
 
   readonly property color contentForeground: bar ? bar.foreground : Color.foreground
   readonly property color contentUrgent: bar ? bar.urgent : Color.urgent
@@ -92,6 +96,11 @@ Panel {
   readonly property bool showExtended: detailRange === "1D" && sessionQuote && sessionQuote.hasExtended === true
   readonly property string priceCaption: Model.rangeCaption(detailRange, sessionQuote)
   readonly property bool detailIsFavorite: Model.isFavorite(watchlist, detailSymbol)
+  readonly property var detailActionIds: {
+    var actions = ["favorite", "pin"]
+    if (detailIsFavorite) actions.push("remove")
+    return actions
+  }
   readonly property int rowHeight: Style.space(56)
 
   onDetailMainChangeChanged: {
@@ -206,6 +215,7 @@ Panel {
 
   function openSettings() {
     root.clearSearch()
+    root.settingsCursor = 0
     root.view = "settings"
   }
 
@@ -279,6 +289,8 @@ Panel {
     detailInsights = ({})
     view = "detail"
     searching = false
+    detailSection = 0
+    detailActionIndex = 0
     fetchDetail()
   }
 
@@ -331,6 +343,7 @@ Panel {
   }
 
   function clearSearch() {
+    listChrome = "rows"
     searching = false
     searchQuery = ""
     suggestions = []
@@ -341,6 +354,7 @@ Panel {
   }
 
   function startSearch(prefix) {
+    listChrome = "search"
     searching = true
     Qt.callLater(function() {
       searchField.forceActiveFocus()
@@ -351,6 +365,26 @@ Panel {
         searchField.selectAll()
       }
     })
+  }
+
+  function focusSearchChrome() {
+    listChrome = "search"
+    searching = true
+    Qt.callLater(function() {
+      searchField.forceActiveFocus()
+      searchField.cursorPosition = String(searchField.text).length
+    })
+  }
+
+  function focusGearChrome() {
+    listChrome = "gear"
+    Qt.callLater(function() { if (keyCatcher) keyCatcher.forceActiveFocus() })
+  }
+
+  function focusRowsChrome() {
+    listChrome = "rows"
+    cursorActive = (searching && suggestions.length > 0) || watchlist.length > 0
+    Qt.callLater(function() { if (keyCatcher) keyCatcher.forceActiveFocus() })
   }
 
   function requestSearch() {
@@ -384,22 +418,101 @@ Panel {
     cursorActive = true
     if (searching && suggestions.length > 0) {
       var next = suggestionIndex + dy
-      if (next < 0) next = 0
+      if (next < 0) {
+        focusSearchChrome()
+        return
+      }
       if (next >= suggestions.length) next = suggestions.length - 1
       suggestionIndex = next
       return
     }
-    if (watchlist.length === 0) return
-    selectedIndex = (selectedIndex + dy + watchlist.length) % watchlist.length
+    if (watchlist.length === 0) {
+      if (dy < 0) focusSearchChrome()
+      return
+    }
+    var nextRow = selectedIndex + dy
+    if (nextRow < 0) {
+      focusSearchChrome()
+      return
+    }
+    if (nextRow >= watchlist.length) nextRow = watchlist.length - 1
+    selectedIndex = nextRow
   }
 
   function activateCursor() {
-    if (searching) {
+    if (view === "settings") {
+      if (settingsCursor === 0) setShowOnBar(!showOnBar)
+      return
+    }
+    if (view === "detail") {
+      if (detailSection !== 0) return
+      var action = detailActionIds[detailActionIndex]
+      if (action === "favorite") toggleFavorite(detailSymbol)
+      else if (action === "pin") pinSymbol(detailSymbol)
+      else if (action === "remove") {
+        removeSymbol(detailSymbol)
+        closeDetail()
+      }
+      return
+    }
+    if (listChrome === "gear") {
+      openSettings()
+      return
+    }
+    if (listChrome === "search") {
       commitSearch()
+      return
+    }
+    if (searching && searchQuery.length > 0 && suggestions.length > 0) {
+      var pick = suggestions[Math.max(0, Math.min(suggestionIndex, suggestions.length - 1))]
+      if (pick) openDetail(pick.symbol)
       return
     }
     if (watchlist.length === 0) return
     openDetail(watchlist[selectedIndex])
+  }
+
+  function moveFocus(dx, dy) {
+    if (view === "settings") {
+      if (dy !== 0) settingsCursor = Math.max(0, Math.min(2, settingsCursor + dy))
+      if (dx !== 0) {
+        if (settingsCursor === 0) setShowOnBar(dx > 0)
+        else if (settingsCursor === 1) setRefreshSeconds(refreshSeconds + dx * 15)
+        else if (settingsCursor === 2) {
+          var sections = ["left", "center", "right"]
+          var i = sections.indexOf(barSection)
+          if (i < 0) i = 2
+          i = Math.max(0, Math.min(2, i + dx))
+          setBarSection(sections[i])
+        }
+      }
+      return
+    }
+    if (view === "detail") {
+      if (dy !== 0) {
+        detailSection = Math.max(0, Math.min(1, detailSection + dy))
+        return
+      }
+      if (dx === 0) return
+      if (detailSection === 0) {
+        var n = detailActionIds.length
+        if (n > 0) detailActionIndex = (detailActionIndex + dx + n) % n
+        return
+      }
+      var ranges = detailRanges
+      var idx = ranges.indexOf(detailRange)
+      if (idx < 0) idx = 0
+      idx = (idx + dx + ranges.length) % ranges.length
+      setDetailRange(ranges[idx])
+      return
+    }
+    if (listChrome === "gear") {
+      if (dx < 0) focusSearchChrome()
+      else if (dy > 0) focusRowsChrome()
+      return
+    }
+    if (dx !== 0) return
+    if (dy !== 0) moveCursor(dy)
   }
 
   FileView {
@@ -561,26 +674,12 @@ Panel {
       id: keyCatcher
       anchors.fill: parent
       blocked: searchField.activeFocus
-      onMoveRequested: function(dx, dy) {
-        if (root.view === "detail") {
-          if (dx !== 0) {
-            var ranges = root.detailRanges
-            var idx = ranges.indexOf(root.detailRange)
-            if (idx < 0) idx = 0
-            idx = (idx + dx + ranges.length) % ranges.length
-            root.setDetailRange(ranges[idx])
-          }
-          return
-        }
-        if (dy !== 0) root.moveCursor(dy)
-      }
-      onActivateRequested: {
-        if (root.view === "detail") return
-        root.activateCursor()
-      }
+      onMoveRequested: function(dx, dy) { root.moveFocus(dx, dy) }
+      onActivateRequested: root.activateCursor()
       onCloseRequested: {
         if (root.view === "detail") root.closeDetail()
         else if (root.view === "settings") root.view = "list"
+        else if (root.listChrome === "gear") root.focusSearchChrome()
         else if (root.searching) root.clearSearch()
         else root.close()
       }
@@ -590,13 +689,32 @@ Panel {
       }
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onTextKey: function(t) {
-        if (root.view === "detail" || root.view === "settings") return
+        if (root.view === "settings") return
+        if (root.view === "detail") {
+          if (t === "f" || t === "F") root.toggleFavorite(root.detailSymbol)
+          else if (t === "p" || t === "P") root.pinSymbol(root.detailSymbol)
+          else if ((t === "x" || t === "X") && root.detailIsFavorite) {
+            root.removeSymbol(root.detailSymbol)
+            root.closeDetail()
+          }
+          return
+        }
         if (t === "/" || t === "?") { root.startSearch(""); return }
+        if (t === "s" || t === "S") { root.openSettings(); return }
         if (t === "p" || t === "P") {
-          if (root.watchlist.length > 0) root.pinSymbol(root.watchlist[root.selectedIndex])
+          if (root.searching && root.suggestions.length > 0)
+            root.toggleFavorite(root.suggestions[root.suggestionIndex].symbol)
+          else if (root.watchlist.length > 0) root.pinSymbol(root.watchlist[root.selectedIndex])
+          return
+        }
+        if (t === "f" || t === "F") {
+          if (root.searching && root.suggestions.length > 0)
+            root.toggleFavorite(root.suggestions[root.suggestionIndex].symbol)
+          else if (root.watchlist.length > 0) root.toggleFavorite(root.watchlist[root.selectedIndex])
           return
         }
         if (t === "x" || t === "X") return
+        if (root.listChrome === "gear") return
         if (t && t.length === 1 && t !== " ") root.startSearch(t)
       }
 
@@ -629,6 +747,7 @@ Panel {
                 anchors.right: gearBtn.left
                 anchors.rightMargin: Style.space(8)
                 placeholderText: "Search tickers…"
+                hasCursor: root.listChrome === "search" && !activeFocus
                 foreground: root.contentForeground
                 font.family: root.contentFontFamily
 
@@ -645,10 +764,13 @@ Panel {
                   root.clearSearch()
                   event.accepted = true
                 } else if (event.key === Qt.Key_Down) {
-                  root.moveCursor(1)
+                  root.focusRowsChrome()
                   event.accepted = true
-                } else if (event.key === Qt.Key_Up) {
-                  root.moveCursor(-1)
+                } else if (event.key === Qt.Key_Right && searchField.cursorPosition >= String(searchField.text).length) {
+                  root.focusGearChrome()
+                  event.accepted = true
+                } else if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
+                  root.switchPanel((event.modifiers & Qt.ShiftModifier) || event.key === Qt.Key_Backtab ? -1 : 1)
                   event.accepted = true
                 } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
                   root.commitSearch()
@@ -665,6 +787,8 @@ Panel {
                 tooltipText: "Settings"
                 foreground: root.dim
                 fontFamily: root.contentFontFamily
+                hasCursor: root.listChrome === "gear"
+                bordered: root.listChrome === "gear"
                 onClicked: root.openSettings()
               }
             }
@@ -950,6 +1074,7 @@ Panel {
               label: "Show ticker on bar"
               description: "When off, the bar shows a compact icon and quotes are fetched only while this panel is open."
               checked: root.showOnBar
+              hasCursor: root.settingsCursor === 0
               foreground: root.contentForeground
               fontFamily: root.contentFontFamily
               onClicked: root.setShowOnBar(!root.showOnBar)
@@ -962,6 +1087,7 @@ Panel {
               from: 15
               to: 3600
               stepSize: 15
+              hasCursor: root.settingsCursor === 1
               foreground: root.contentForeground
               fontFamily: root.contentFontFamily
               onModified: function(v) { root.setRefreshSeconds(v) }
@@ -980,6 +1106,8 @@ Panel {
               fontFamily: root.contentFontFamily
               fontSize: Style.font.bodySmall
               value: root.barSection
+              focusable: false
+              cursorIndex: root.settingsCursor === 2 ? ["left", "center", "right"].indexOf(root.barSection) : -1
               options: [
                 { value: "left", label: "Left" },
                 { value: "center", label: "Center" },
@@ -1023,6 +1151,7 @@ Panel {
 
                 Button {
                   text: root.detailIsFavorite ? "Favorited" : "Favorite"
+                  hasCursor: root.detailSection === 0 && root.detailActionIndex === 0
                   foreground: root.detailIsFavorite ? root.contentForeground : root.dim
                   fontFamily: root.contentFontFamily
                   fontSize: Style.font.bodySmall
@@ -1032,6 +1161,7 @@ Panel {
                 }
                 Button {
                   text: Model.isPinned(root.pinned, root.detailSymbol) ? "Pinned" : "Pin"
+                  hasCursor: root.detailSection === 0 && root.detailActionIndex === 1
                   foreground: Model.isPinned(root.pinned, root.detailSymbol) ? root.contentForeground : root.dim
                   fontFamily: root.contentFontFamily
                   fontSize: Style.font.bodySmall
@@ -1042,6 +1172,7 @@ Panel {
                 Button {
                   visible: root.detailIsFavorite
                   text: "Remove"
+                  hasCursor: root.detailSection === 0 && root.detailActionIndex === 2
                   foreground: root.contentUrgent
                   accent: root.contentUrgent
                   fontFamily: root.contentFontFamily
