@@ -20,6 +20,13 @@ test("zero remains a valid numeric value", () => {
   assert.equal(Model.changeTone(0), "flat")
 })
 
+test("retry delay backs off exponentially and respects its ceiling", () => {
+  assert.equal(Model.backoffDelay(5000, 0, 60000), 5000)
+  assert.equal(Model.backoffDelay(5000, 1, 60000), 10000)
+  assert.equal(Model.backoffDelay(5000, 4, 60000), 60000)
+  assert.equal(Model.backoffDelay(5000, 20, 60000), 60000)
+})
+
 test("chart parser does not turn missing quote fields into zero", () => {
   const raw = JSON.stringify({
     chart: {

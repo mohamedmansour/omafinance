@@ -31,6 +31,12 @@ Panel {
   property string insightsFetchSymbol: ""
   property string quotePageFetchSymbol: ""
   property bool quoteRefreshPending: false
+  property int quoteFailureCount: 0
+  property string quoteError: ""
+  property double quotesUpdatedAt: 0
+  property int chartFailureCount: 0
+  property string chartError: ""
+  property double chartUpdatedAt: 0
   property var detailPage: ({})
   property var detailInsights: ({})
   property string searchQuery: ""
@@ -38,6 +44,7 @@ Panel {
   property int suggestionIndex: 0
   property string searchPendingQuery: ""
   property string searchActiveQuery: ""
+  property string searchError: ""
   property bool searching: false
   property string listChrome: "rows"
   property int settingsCursor: 0
@@ -64,6 +71,9 @@ Panel {
   readonly property bool showChange: setting("showChange", legacyShowOnBar) !== false
   readonly property bool showBarData: showTicker || showPrice || showChange
   readonly property bool showBarQuote: showPrice || showChange
+  readonly property int backgroundRefreshMs: Model.backoffDelay(refreshSeconds * 1000, quoteFailureCount, 3600000)
+  readonly property int liveRefreshMs: Model.backoffDelay(2000, quoteFailureCount, 60000)
+  readonly property int chartRefreshMs: Model.backoffDelay(15000, chartFailureCount, 120000)
   readonly property string barSection: {
     var s = String(setting("barSection", "right") || "right")
     if (s === "left" || s === "center" || s === "right") return s
@@ -74,6 +84,21 @@ Panel {
   readonly property string label: Model.barLabel(barSymbol, pinnedQuote, false, showTicker, showPrice, showChange, changeStyle)
   readonly property string verticalLabel: Model.barLabel(barSymbol, pinnedQuote, true, showTicker, showPrice, showChange, changeStyle)
   readonly property string labelTone: Model.changeTone(pinnedQuote ? pinnedQuote.changePercent : null)
+  readonly property string quoteStatusText: {
+    var hasQuotes = Object.keys(quotes || {}).length > 0
+    if (quoteProc.running) return hasQuotes ? "Updating quotes…" : "Loading quotes…"
+    if (quoteError) {
+      var suffix = quotesUpdatedAt > 0 ? " · Last updated " + timeLabel(quotesUpdatedAt) : ""
+      return quoteError + suffix
+    }
+    return quotesUpdatedAt > 0 ? "Updated " + timeLabel(quotesUpdatedAt) : ""
+  }
+  readonly property string chartStatusText: {
+    var currentFetch = chartFetchSymbol === detailSymbol && chartFetchRange === detailRange
+    if (chartProc.running && currentFetch) return rangeChart ? "Updating chart…" : "Loading chart…"
+    if (chartError) return chartError
+    return chartUpdatedAt > 0 && detailQuote ? "Chart updated " + timeLabel(chartUpdatedAt) : ""
+  }
   readonly property var detailRanges: Model.chartRanges()
   readonly property var activeQuote: quotes[detailSymbol] || detailQuote
   readonly property var rangeChart: {
@@ -207,6 +232,15 @@ Panel {
     if (tone === "up") return upFill
     if (tone === "down") return downFill
     return Qt.rgba(contentForeground.r, contentForeground.g, contentForeground.b, 0.18)
+  }
+
+  function timeLabel(timestamp) {
+    var date = new Date(Number(timestamp) || 0)
+    var hours = date.getHours()
+    var minutes = date.getMinutes()
+    var seconds = date.getSeconds()
+    function pad(value) { return value < 10 ? "0" + value : String(value) }
+    return pad(hours) + ":" + pad(minutes) + ":" + pad(seconds)
   }
 
   function clampSelected() {
@@ -344,6 +378,9 @@ Panel {
     detailSymbol = next
     heldMainChange = null
     detailQuote = null
+    chartFailureCount = 0
+    chartError = ""
+    chartUpdatedAt = 0
     detailPage = ({})
     detailInsights = ({})
     view = "detail"
@@ -366,6 +403,9 @@ Panel {
     detailRange = next
     persist()
     if (!detailSymbol) return
+    chartFailureCount = 0
+    chartError = ""
+    chartUpdatedAt = 0
     startChartFetch()
   }
 
@@ -374,6 +414,7 @@ Panel {
     if (chartProc.running) return
     chartFetchSymbol = detailSymbol
     chartFetchRange = detailRange
+    chartError = ""
     chartProc.command = ["curl", "-fsS", "--max-time", "8", "-A", "Mozilla/5.0", Model.chartUrl(chartFetchSymbol, chartFetchRange)]
     chartProc.running = true
   }
@@ -451,13 +492,17 @@ Panel {
     searchQuery = query
     if (query.length < 1) {
       suggestions = []
+      searchPendingQuery = ""
+      searchError = ""
       return
     }
+    searchError = ""
     searchPendingQuery = query
     if (!searchProc.running) startSearchFetch()
   }
 
   function startSearchFetch() {
+    if (!searching || !searchPendingQuery) return
     searchActiveQuery = searchPendingQuery
     searchProc.command = ["curl", "-fsS", "--max-time", "5", "-A", "Mozilla/5.0", Model.searchUrl(searchActiveQuery)]
     searchProc.running = true
@@ -615,50 +660,76 @@ Panel {
 
   Process {
     id: quoteProc
-    onExited: {
+    onExited: function(exitCode) {
+      var raw = String(quoteStdout.text || "").trim()
+      var parsed = exitCode === 0 && raw ? Model.parseSpark(raw) : ({})
+      if (Object.keys(parsed).length > 0) {
+        root.quotes = Model.mergeQuotes(root.quotes, parsed)
+        root.quoteFailureCount = 0
+        root.quoteError = ""
+        root.quotesUpdatedAt = Date.now()
+      } else {
+        root.quoteFailureCount = Math.min(10, root.quoteFailureCount + 1)
+        root.quoteError = "Quotes unavailable"
+      }
       if (root.quoteRefreshPending) Qt.callLater(root.refresh)
     }
     stdout: StdioCollector {
+      id: quoteStdout
       waitForEnd: true
-      onStreamFinished: {
-        var raw = String(text || "").trim()
-        if (!raw) return
-        var parsed = Model.parseSpark(raw)
-        root.quotes = Model.mergeQuotes(root.quotes, parsed)
-      }
     }
   }
 
   Process {
     id: searchProc
-    stdout: StdioCollector {
-      waitForEnd: true
-      onStreamFinished: {
-        root.suggestions = root.searching ? Model.parseSearch(text) : []
+    onExited: function(exitCode) {
+      if (root.searching && root.searchActiveQuery === root.searchQuery) {
+        if (exitCode === 0) {
+          root.suggestions = Model.parseSearch(searchStdout.text)
+          root.searchError = ""
+        } else {
+          root.suggestions = []
+          root.searchError = "Search unavailable"
+        }
         root.suggestionIndex = 0
-        if (root.searchPendingQuery !== root.searchActiveQuery) Qt.callLater(root.startSearchFetch)
       }
+      if (root.searching && root.searchPendingQuery
+          && root.searchPendingQuery !== root.searchActiveQuery)
+        Qt.callLater(root.startSearchFetch)
+    }
+    stdout: StdioCollector {
+      id: searchStdout
+      waitForEnd: true
     }
   }
 
   Process {
     id: chartProc
-    onExited: {
+    onExited: function(exitCode) {
+      var currentFetch = root.chartFetchSymbol === root.detailSymbol && root.chartFetchRange === root.detailRange
+      if (currentFetch) {
+        var parsed = exitCode === 0 ? Model.parseChart(chartStdout.text) : null
+        var expected = Model.chartSpec(root.detailRange).range
+        var valid = parsed && parsed.symbol === root.detailSymbol
+          && (!parsed.yahooRange || parsed.yahooRange === expected)
+        if (valid) {
+          parsed.chartRange = root.detailRange
+          root.detailQuote = parsed
+          root.chartFailureCount = 0
+          root.chartError = ""
+          root.chartUpdatedAt = Date.now()
+        } else {
+          root.chartFailureCount = Math.min(10, root.chartFailureCount + 1)
+          root.chartError = "Chart unavailable"
+        }
+      }
       if (root.detailSymbol
           && (root.chartFetchSymbol !== root.detailSymbol || root.chartFetchRange !== root.detailRange))
         Qt.callLater(root.startChartFetch)
     }
     stdout: StdioCollector {
+      id: chartStdout
       waitForEnd: true
-      onStreamFinished: {
-        var parsed = Model.parseChart(text)
-        if (!parsed || root.chartFetchSymbol !== root.detailSymbol || parsed.symbol !== root.detailSymbol) return
-        if (root.chartFetchRange !== root.detailRange) return
-        var expected = Model.chartSpec(root.detailRange).range
-        if (parsed.yahooRange && parsed.yahooRange !== expected) return
-        parsed.chartRange = root.detailRange
-        root.detailQuote = parsed
-      }
     }
   }
 
@@ -700,7 +771,7 @@ Panel {
 
   Timer {
     id: refreshTimer
-    interval: root.refreshSeconds * 1000
+    interval: root.backgroundRefreshMs
     running: root.showBarQuote && !root.opened
     repeat: true
     triggeredOnStart: true
@@ -709,15 +780,19 @@ Panel {
 
   Timer {
     id: liveTimer
-    interval: 1000
+    interval: root.liveRefreshMs
     running: root.opened
     repeat: true
     triggeredOnStart: true
-    onTriggered: {
-      root.refresh()
-      if (root.view === "detail" && root.detailRange === "1D")
-        root.startChartFetch()
-    }
+    onTriggered: root.refresh()
+  }
+
+  Timer {
+    id: chartLiveTimer
+    interval: root.chartRefreshMs
+    running: root.opened && root.view === "detail" && root.detailRange === "1D"
+    repeat: true
+    onTriggered: root.startChartFetch()
   }
 
   Timer {
@@ -873,6 +948,16 @@ Panel {
               }
             }
 
+            Text {
+              visible: root.quoteStatusText !== ""
+              width: parent.width
+              text: root.quoteStatusText
+              color: root.quoteError ? root.contentUrgent : root.dim
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.bodySmall
+              elide: Text.ElideRight
+            }
+
             Column {
               width: parent.width
               spacing: Style.space(2)
@@ -949,8 +1034,8 @@ Panel {
 
               Text {
                 visible: root.suggestions.length === 0 && root.searchQuery.length > 0
-                text: "No matches"
-                color: root.dim
+                text: searchProc.running ? "Searching…" : (root.searchError || "No matches")
+                color: root.searchError ? root.contentUrgent : root.dim
                 font.family: root.contentFontFamily
                 font.pixelSize: Style.font.bodySmall
                 leftPadding: Style.space(4)
@@ -1472,6 +1557,16 @@ Panel {
                   }
                 }
               }
+            }
+
+            Text {
+              visible: root.chartStatusText !== ""
+              width: parent.width
+              text: root.chartStatusText
+              color: root.chartError ? root.contentUrgent : root.dim
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.bodySmall
+              elide: Text.ElideRight
             }
 
             Sparkline {

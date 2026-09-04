@@ -423,6 +423,13 @@ function mergeQuotes(current, incoming) {
   return out
 }
 
+function backoffDelay(baseMs, failures, maxMs) {
+  var base = Math.max(1, parseInt(baseMs, 10) || 1)
+  var count = Math.max(0, Math.min(10, parseInt(failures, 10) || 0))
+  var ceiling = Math.max(base, parseInt(maxMs, 10) || base)
+  return Math.min(ceiling, base * Math.pow(2, count))
+}
+
 function withCommas(text) {
   var parts = String(text).split(".")
   parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",")
@@ -756,6 +763,7 @@ if (typeof module !== "undefined") {
     parseSpark: parseSpark,
     parseChart: parseChart,
     mergeQuotes: mergeQuotes,
+    backoffDelay: backoffDelay,
     formatPrice: formatPrice,
     formatPercent: formatPercent,
     formatChange: formatChange,

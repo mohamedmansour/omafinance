@@ -26,7 +26,7 @@ No API key. Quotes come from Yahoo Finance.
 omarchy plugin add https://github.com/mohamedmansour/omafinance.git --enable
 ```
 
-Omafinance lands on the right of the bar (next to network / audio). A gear in the panel opens settings: independently show or hide the ticker symbol, price, and percentage change, and configure background refresh. While the panel is open, quotes refresh every second.
+Omafinance lands on the right of the bar (next to network / audio). A gear in the panel opens settings: independently show or hide the ticker symbol, price, and percentage change, and configure background refresh. While the panel is open, quotes refresh every two seconds and the active 1D chart every fifteen seconds. Failed requests back off automatically.
 
 ## Update
 
