@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "id": "mohamedmansour.finance",
+  "name": "Omafinance",
+  "version": "1.0.0",
+  "author": "mohamedmansour",
+  "license": "MIT",
+  "description": "Omafinance — iOS Stocks-style watchlist for the Omarchy bar",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Omafinance",
+    "description": "Pinned ticker on the bar, watchlist popup with search and charts",
+    "category": "Info",
+    "allowMultiple": false,
+    "defaultSection": "center",
+    "defaults": {
+      "refreshSeconds": 60
+    },
+    "schema": [
+      {
+        "key": "refreshSeconds",
+        "type": "integer",
+        "label": "Refresh interval (seconds)",
+        "min": 15,
+        "max": 3600,
+        "step": 15,
+        "defaultValue": 60
+      }
+    ]
+  }
+}
