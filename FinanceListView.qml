@@ -197,6 +197,10 @@ Column {
                             controller.cursorActive = true;
                             controller.selectedIndex = index;
                         }
+                        onPressed: function (mouse) {
+                            if (mouse.button === Qt.LeftButton)
+                                controller.prefetchDetail(symbol);
+                        }
                         onClicked: function (mouse) {
                             if (mouse.button === Qt.RightButton)
                                 controller.pinSymbol(symbol);

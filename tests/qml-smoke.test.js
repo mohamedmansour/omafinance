@@ -51,6 +51,16 @@ test("detail loading is a delayed icon beside the ticker", () => {
   assert.ok(status === -1 || spinner < status)
 })
 
+test("watchlist pointer-down prefetches details without duplicating the click fetch", () => {
+  const panel = fs.readFileSync(path.join(root, "Panel.qml"), "utf8")
+  const list = fs.readFileSync(path.join(root, "FinanceListView.qml"), "utf8")
+
+  assert.match(list, /onPressed:\s*function\s*\(mouse\)[\s\S]*?mouse\.button === Qt\.LeftButton[\s\S]*?controller\.prefetchDetail\(symbol\)/)
+  assert.match(panel, /function prefetchDetail\(symbol\)\s*\{\s*prepareDetail\(symbol\);?\s*\}/)
+  assert.match(panel, /function prepareDetail\(symbol\)[\s\S]*?if \(detailSymbol === next\)\s*return true;/)
+  assert.match(panel, /function openDetail\(symbol\)\s*\{\s*if \(!prepareDetail\(symbol\)\)/)
+})
+
 test("change style follows the show-change setting and precedes refresh", () => {
   const settings = fs.readFileSync(path.join(root, "FinanceSettingsView.qml"), "utf8")
   const changeStyle = settings.indexOf('text: "Change on bar"')

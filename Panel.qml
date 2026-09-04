@@ -454,10 +454,12 @@ Panel {
             addSymbol(next);
     }
 
-    function openDetail(symbol) {
+    function prepareDetail(symbol) {
         var next = Model.normalizeSymbol(symbol);
         if (!next)
-            return;
+            return false;
+        if (detailSymbol === next)
+            return true;
         detailSymbol = next;
         heldMainChange = null;
         detailQuote = null;
@@ -472,11 +474,21 @@ Panel {
         quotePageLoaded = false;
         detailPage = ({});
         detailInsights = ({});
+        fetchDetail();
+        return true;
+    }
+
+    function prefetchDetail(symbol) {
+        prepareDetail(symbol);
+    }
+
+    function openDetail(symbol) {
+        if (!prepareDetail(symbol))
+            return;
         view = "detail";
         searching = false;
         detailSection = 0;
         detailActionIndex = 0;
-        fetchDetail();
     }
 
     function closeDetail() {
