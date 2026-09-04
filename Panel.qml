@@ -52,6 +52,10 @@ Panel {
     property string searchActiveQuery: ""
     property string searchError: ""
     property bool searching: false
+    property var searchCache: ({})
+    property var searchCacheOrder: []
+    readonly property int searchCacheTtlMs: 300000
+    readonly property int searchCacheLimit: 32
     property string listChrome: "rows"
     property int settingsCursor: 0
     property int detailSection: 0
@@ -244,6 +248,7 @@ Panel {
 
     function close() {
         setCenterHoverRevealSuppressed(false);
+        openRefreshTimer.stop();
         root.clearSearch();
         root.view = "list";
         root.controller.hide();
@@ -421,10 +426,7 @@ Panel {
     }
 
     function scheduleOpenRefresh() {
-        Qt.callLater(function () {
-            if (root.opened && !quoteProc.running)
-                root.refresh();
-        });
+        openRefreshTimer.restart();
     }
 
     function scheduleBarRefresh() {
@@ -601,14 +603,14 @@ Panel {
     function startSearch(prefix) {
         listChrome = "search";
         searching = true;
+        if (prefix) {
+            listView.field.text = prefix;
+            listView.field.cursorPosition = listView.field.text.length;
+        }
         Qt.callLater(function () {
             listView.field.forceActiveFocus();
-            if (prefix) {
-                listView.field.text = prefix;
-                listView.field.cursorPosition = listView.field.text.length;
-            } else {
+            if (!prefix)
                 listView.field.selectAll();
-            }
         });
     }
 
@@ -647,10 +649,54 @@ Panel {
             searchError = "";
             return;
         }
+        var cached = cachedSearchResults(query);
+        if (cached !== null) {
+            suggestions = cached;
+            suggestionIndex = 0;
+            searchPendingQuery = "";
+            searchError = "";
+            return;
+        }
         searchError = "";
         searchPendingQuery = query;
         if (!searchProc.running)
             startSearchFetch();
+    }
+
+    function searchCacheKey(query) {
+        return String(query || "").replace(/^\s+|\s+$/g, "").toUpperCase();
+    }
+
+    function cachedSearchResults(query) {
+        var key = searchCacheKey(query);
+        var entry = searchCache[key];
+        if (!entry || Date.now() - entry.storedAt > searchCacheTtlMs)
+            return null;
+        return entry.results;
+    }
+
+    function cacheSearchResults(query, results) {
+        var key = searchCacheKey(query);
+        if (!key)
+            return;
+        var nextCache = {};
+        var nextOrder = [];
+        for (var i = 0; i < searchCacheOrder.length; i++) {
+            var existingKey = searchCacheOrder[i];
+            if (existingKey !== key && searchCache[existingKey]) {
+                nextCache[existingKey] = searchCache[existingKey];
+                nextOrder.push(existingKey);
+            }
+        }
+        nextCache[key] = {
+            storedAt: Date.now(),
+            results: results
+        };
+        nextOrder.push(key);
+        while (nextOrder.length > searchCacheLimit)
+            delete nextCache[nextOrder.shift()];
+        searchCache = nextCache;
+        searchCacheOrder = nextOrder;
     }
 
     function startSearchFetch() {
@@ -874,9 +920,14 @@ Panel {
     Process {
         id: searchProc
         onExited: function (exitCode) {
+            var results = [];
+            if (exitCode === 0) {
+                results = Model.parseSearch(searchStdout.text);
+                root.cacheSearchResults(root.searchActiveQuery, results);
+            }
             if (root.searching && root.searchActiveQuery === root.searchQuery) {
                 if (exitCode === 0) {
-                    root.suggestions = Model.parseSearch(searchStdout.text);
+                    root.suggestions = results;
                     root.searchError = "";
                 } else {
                     root.suggestions = [];
@@ -973,8 +1024,19 @@ Panel {
 
     Timer {
         id: searchDebounce
-        interval: 300
+        interval: 100
         onTriggered: root.requestSearch()
+    }
+
+    Timer {
+        id: openRefreshTimer
+        interval: 250
+        repeat: false
+        onTriggered: {
+            var searchStarted = root.searching && root.searchQuery.length > 0;
+            if (root.opened && !searchStarted && !quoteProc.running)
+                root.refresh();
+        }
     }
 
     Timer {

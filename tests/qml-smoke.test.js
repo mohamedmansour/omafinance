@@ -37,9 +37,20 @@ test("panel presents before scheduling one non-blocking open refresh", () => {
   assert.doesNotMatch(panel, /stateFile\.reload\(\)/)
   assert.match(panel, /function open\(\)[\s\S]*?root\.controller\.show\(\);\s*scheduleOpenRefresh\(\);/)
   assert.match(panel, /function toggle\(\)[\s\S]*?else\s*root\.open\(\);/)
-  assert.match(panel, /function scheduleOpenRefresh\(\)[\s\S]*?Qt\.callLater/)
+  assert.match(panel, /function scheduleOpenRefresh\(\)\s*\{\s*openRefreshTimer\.restart\(\);?\s*\}/)
   assert.match(panel, /function scheduleBarRefresh\(\)[\s\S]*?root\.showBarData && !quoteProc\.running/)
   assert.doesNotMatch(panel, /triggeredOnStart:\s*true/)
+})
+
+test("search renders immediately, uses a short debounce, and caches results", () => {
+  const panel = fs.readFileSync(path.join(root, "Panel.qml"), "utf8")
+
+  assert.match(panel, /function startSearch\(prefix\)[\s\S]*?listView\.field\.text = prefix;[\s\S]*?Qt\.callLater/)
+  assert.match(panel, /id:\s*searchDebounce[\s\S]*?interval:\s*100/)
+  assert.match(panel, /function cachedSearchResults\(query\)/)
+  assert.match(panel, /function cacheSearchResults\(query, results\)/)
+  assert.match(panel, /searchCacheTtlMs:\s*300000/)
+  assert.match(panel, /id:\s*openRefreshTimer[\s\S]*?searchStarted/)
 })
 
 test("background quote refreshes do not show updating status", () => {
