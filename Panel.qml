@@ -50,6 +50,11 @@ Panel {
   readonly property color downFill: Qt.rgba(downColor.r, downColor.g, downColor.b, 1)
   readonly property int refreshSeconds: Math.max(15, parseInt(setting("refreshSeconds", 60), 10) || 60)
   readonly property bool showOnBar: setting("showOnBar", true) !== false
+  readonly property string changeStyle: {
+    var s = String(setting("changeStyle", "percent") || "percent")
+    if (s === "percent" || s === "dollars") return s
+    return "percent"
+  }
   readonly property string barSection: {
     var s = String(setting("barSection", "right") || "right")
     if (s === "left" || s === "center" || s === "right") return s
@@ -57,8 +62,8 @@ Panel {
   }
   readonly property string barSymbol: Model.barSymbol(pinned, watchlist, pinIndex)
   readonly property var pinnedQuote: quotes[barSymbol] || null
-  readonly property string label: Model.barLabel(barSymbol, pinnedQuote, false)
-  readonly property string verticalLabel: Model.barLabel(barSymbol, pinnedQuote, true)
+  readonly property string label: Model.barLabel(barSymbol, pinnedQuote, false, changeStyle)
+  readonly property string verticalLabel: Model.barLabel(barSymbol, pinnedQuote, true, changeStyle)
   readonly property string labelTone: Model.changeTone(pinnedQuote ? pinnedQuote.changePercent : null)
   readonly property var detailRanges: Model.chartRanges()
   readonly property var activeQuote: quotes[detailSymbol] || detailQuote
@@ -69,6 +74,7 @@ Panel {
   }
   readonly property var detailStats: Model.buildDetailStats(activeQuote, detailPage, detailInsights)
   readonly property var detailRangeChange: Model.rangeChangePercent(rangeChart, detailRange)
+  readonly property var detailRangeChangeAmount: Model.rangeChangeAmount(rangeChart, detailRange)
   readonly property var sessionQuote: quotes[detailSymbol] || rangeChart || activeQuote
   readonly property var detailMainPrice: {
     if (detailRange === "1D" && sessionQuote && sessionQuote.regularPrice != null)
@@ -80,7 +86,13 @@ Panel {
       return sessionQuote.regularChangePercent
     return detailRangeChange
   }
+  readonly property var detailMainChangeAmount: {
+    if (detailRange === "1D" && sessionQuote && sessionQuote.regularPrice != null && sessionQuote.previousClose != null)
+      return sessionQuote.regularPrice - sessionQuote.previousClose
+    return detailRangeChangeAmount
+  }
   property var heldMainChange: null
+  property var heldMainChangeAmount: null
   readonly property bool awaitingRangeChart: {
     if (view !== "detail" || !detailSymbol) return false
     if (detailQuote && detailQuote.chartRange === detailRange) return false
@@ -93,7 +105,18 @@ Panel {
     if (detailMainChange != null && isFinite(n)) return detailMainChange
     return heldMainChange
   }
+  readonly property var shownMainChangeAmount: {
+    if (awaitingRangeChart) return heldMainChangeAmount
+    var n = Number(detailMainChangeAmount)
+    if (detailMainChangeAmount != null && isFinite(n)) return detailMainChangeAmount
+    return heldMainChangeAmount
+  }
   readonly property bool showExtended: detailRange === "1D" && sessionQuote && sessionQuote.hasExtended === true
+  readonly property var extendedChangeAmount: {
+    if (!sessionQuote || sessionQuote.extendedPrice == null || sessionQuote.regularPrice == null)
+      return null
+    return sessionQuote.extendedPrice - sessionQuote.regularPrice
+  }
   readonly property string priceCaption: Model.rangeCaption(detailRange, sessionQuote)
   readonly property bool detailIsFavorite: Model.isFavorite(watchlist, detailSymbol)
   readonly property var detailActionIds: {
@@ -107,6 +130,12 @@ Panel {
     if (awaitingRangeChart) return
     var n = Number(detailMainChange)
     if (detailMainChange != null && isFinite(n)) heldMainChange = detailMainChange
+  }
+
+  onDetailMainChangeAmountChanged: {
+    if (awaitingRangeChart) return
+    var n = Number(detailMainChangeAmount)
+    if (detailMainChangeAmount != null && isFinite(n)) heldMainChangeAmount = detailMainChangeAmount
   }
 
   function open() {
@@ -202,6 +231,12 @@ Panel {
   function setRefreshSeconds(value) {
     var n = Math.max(15, Math.min(3600, parseInt(value, 10) || 60))
     persistSettings({ refreshSeconds: n })
+  }
+
+  function setChangeStyle(style) {
+    var next = String(style || "dollars")
+    if (next !== "percent" && next !== "dollars") return
+    persistSettings({ changeStyle: next })
   }
 
   function setBarSection(section) {
@@ -474,11 +509,12 @@ Panel {
 
   function moveFocus(dx, dy) {
     if (view === "settings") {
-      if (dy !== 0) settingsCursor = Math.max(0, Math.min(2, settingsCursor + dy))
+      if (dy !== 0) settingsCursor = Math.max(0, Math.min(3, settingsCursor + dy))
       if (dx !== 0) {
         if (settingsCursor === 0) setShowOnBar(dx > 0)
         else if (settingsCursor === 1) setRefreshSeconds(refreshSeconds + dx * 15)
-        else if (settingsCursor === 2) {
+        else if (settingsCursor === 2) setChangeStyle(dx > 0 ? "dollars" : "percent")
+        else if (settingsCursor === 3) {
           var sections = ["left", "center", "right"]
           var i = sections.indexOf(barSection)
           if (i < 0) i = 2
@@ -1001,7 +1037,7 @@ Panel {
                           id: changeLabel
                           anchors.centerIn: parent
                           textFormat: Text.PlainText
-                          text: quote ? Model.formatPercent(quote.changePercent) : "-"
+                          text: quote ? Model.formatQuoteChange(quote, root.changeStyle) : "-"
                           color: root.contentForeground
                           font.family: root.contentFontFamily
                           font.pixelSize: Style.font.bodySmall
@@ -1094,6 +1130,28 @@ Panel {
             }
 
             Text {
+              text: "Change on bar"
+              color: Qt.darker(root.contentForeground, 1.4)
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.bodySmall
+            }
+
+            ButtonGroup {
+              width: parent.width
+              foreground: root.contentForeground
+              fontFamily: root.contentFontFamily
+              fontSize: Style.font.bodySmall
+              value: root.changeStyle
+              focusable: false
+              cursorIndex: root.settingsCursor === 2 ? ["percent", "dollars"].indexOf(root.changeStyle) : -1
+              options: [
+                { value: "percent", label: "Percent" },
+                { value: "dollars", label: "Dollars" }
+              ]
+              onChanged: function(v) { root.setChangeStyle(v) }
+            }
+
+            Text {
               text: "Bar position"
               color: Qt.darker(root.contentForeground, 1.4)
               font.family: root.contentFontFamily
@@ -1107,7 +1165,7 @@ Panel {
               fontSize: Style.font.bodySmall
               value: root.barSection
               focusable: false
-              cursorIndex: root.settingsCursor === 2 ? ["left", "center", "right"].indexOf(root.barSection) : -1
+              cursorIndex: root.settingsCursor === 3 ? ["left", "center", "right"].indexOf(root.barSection) : -1
               options: [
                 { value: "left", label: "Left" },
                 { value: "center", label: "Center" },
@@ -1239,7 +1297,12 @@ Panel {
                       id: detailChange
                       anchors.centerIn: parent
                       textFormat: Text.PlainText
-                      text: Model.formatPercent(root.shownMainChange)
+                      text: Model.formatChangePair(
+                        root.shownMainChange,
+                        root.shownMainChangeAmount,
+                        root.detailMainPrice,
+                        root.activeQuote ? root.activeQuote.currency : "USD",
+                        root.activeQuote ? root.activeQuote.priceHint : 2)
                       color: root.contentForeground
                       font.family: root.contentFontFamily
                       font.pixelSize: Style.font.body
@@ -1285,7 +1348,14 @@ Panel {
                       id: extChange
                       anchors.centerIn: parent
                       textFormat: Text.PlainText
-                      text: root.sessionQuote ? Model.formatPercent(root.sessionQuote.extendedChangePercent) : "-"
+                      text: root.sessionQuote
+                        ? Model.formatChangePair(
+                          root.sessionQuote.extendedChangePercent,
+                          root.extendedChangeAmount,
+                          root.sessionQuote.extendedPrice,
+                          root.sessionQuote.currency,
+                          root.sessionQuote.priceHint)
+                        : "-"
                       color: root.contentForeground
                       font.family: root.contentFontFamily
                       font.pixelSize: Style.font.body
