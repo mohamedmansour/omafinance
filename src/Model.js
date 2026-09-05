@@ -824,6 +824,23 @@ function formatCandleTime(timestamp, rangeKey) {
   return mon + " " + day + ", " + year
 }
 
+function stratScenario(current, prev) {
+  if (!current || !prev) return "-"
+  var ch = Number(current.high)
+  var cl = Number(current.low)
+  var ph = Number(prev.high)
+  var pl = Number(prev.low)
+  if (!isFinite(ch) || !isFinite(cl) || !isFinite(ph) || !isFinite(pl)) return "-"
+
+  var breaksHigh = ch > ph
+  var breaksLow = cl < pl
+
+  if (breaksHigh && breaksLow) return "3"
+  if (breaksHigh) return "2u"
+  if (breaksLow) return "2d"
+  return "1"
+}
+
 function buildDetailStats(quote, page, insights) {
   quote = quote || {}
   page = page || {}
@@ -918,6 +935,7 @@ if (typeof module !== "undefined") {
     isInsightsResponse: isInsightsResponse,
     formatIsoDate: formatIsoDate,
     formatCandleTime: formatCandleTime,
+    stratScenario: stratScenario,
     buildDetailStats: buildDetailStats
   }
 }

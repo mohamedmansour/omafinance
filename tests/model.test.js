@@ -221,3 +221,26 @@ test("formatCandleTime formats timestamps per timeframe range", () => {
   assert.equal(Model.formatCandleTime(null, "60"), "")
 })
 
+test("stratScenario accurately identifies 1, 2u, 2d, and 3 scenarios", () => {
+  const prev = { high: 100, low: 90 }
+
+  // 1: Inside bar (high <= prev.high && low >= prev.low)
+  assert.equal(Model.stratScenario({ high: 99, low: 91 }, prev), "1")
+  assert.equal(Model.stratScenario({ high: 100, low: 90 }, prev), "1")
+
+  // 2u: Directional Up (high > prev.high && low >= prev.low)
+  assert.equal(Model.stratScenario({ high: 105, low: 90 }, prev), "2u")
+  assert.equal(Model.stratScenario({ high: 105, low: 95 }, prev), "2u")
+
+  // 2d: Directional Down (low < prev.low && high <= prev.high)
+  assert.equal(Model.stratScenario({ high: 100, low: 85 }, prev), "2d")
+  assert.equal(Model.stratScenario({ high: 95, low: 85 }, prev), "2d")
+
+  // 3: Outside bar (high > prev.high && low < prev.low)
+  assert.equal(Model.stratScenario({ high: 105, low: 85 }, prev), "3")
+
+  // Missing or invalid data
+  assert.equal(Model.stratScenario(null, prev), "-")
+  assert.equal(Model.stratScenario({ high: 100, low: 90 }, null), "-")
+})
+

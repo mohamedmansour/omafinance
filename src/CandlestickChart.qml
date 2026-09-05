@@ -73,14 +73,15 @@ Item {
         var total = all.length;
         var w = width;
         var h = height;
-        var topPad = root.pad + Style.space(16);
-        var botPad = root.pad + Style.space(4);
+        var topPad = root.pad + Style.space(20);
+        var botPad = root.pad + Style.space(12);
         var left = root.pad;
         var right = Math.max(left + 1, w - root.pad);
         var top = topPad;
         var bot = Math.max(top + 1, h - botPad);
         var unset = {
             candles: [],
+            strats: [],
             min: 0,
             max: 1,
             span: 1,
@@ -113,6 +114,15 @@ Item {
         if (list.length === 0)
             return unset;
 
+        var strats = [];
+        for (var si = 0; si < list.length; si++) {
+            var globalIdx = vStart + si;
+            var prev = globalIdx > 0 ? all[globalIdx - 1] : null;
+            var st = Model.stratScenario(list[si], prev);
+            list[si].strat = st;
+            strats.push(st);
+        }
+
         var min = list[0].low;
         var max = list[0].high;
         var i;
@@ -136,6 +146,7 @@ Item {
 
         var geometry = {
             candles: list,
+            strats: strats,
             min: min,
             max: max,
             span: span,
@@ -254,6 +265,39 @@ Item {
                 var bodyHeight = Math.max(1.5, Math.abs(yC - yO));
                 var bodyLeft = Math.round(cx - halfW);
                 ctx.fillRect(bodyLeft, bodyTop, Math.max(1, Math.round(cW)), bodyHeight);
+            }
+
+            // Strat numbers rendering
+            if (g.slotW >= 6 && g.strats && g.strats.length > 0) {
+                var fontSize = Math.max(9, Math.min(11, Math.round(g.slotW * 0.55)));
+                ctx.font = "bold " + fontSize + "px " + root.fontFamily;
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+
+                for (var si = 0; si < len; si++) {
+                    var s = g.strats[si];
+                    if (!s || s === "-")
+                        continue;
+
+                    var scx = Math.round(g.xs[si]) + 0.5;
+                    var syH = Math.round(g.yHighs[si]);
+                    var syL = Math.round(g.yLows[si]);
+
+                    var sColor = root.labelColor;
+                    if (s === "2u")
+                        sColor = root.upColor;
+                    else if (s === "2d")
+                        sColor = root.downColor;
+                    else if (s === "3")
+                        sColor = Color.accent;
+
+                    ctx.fillStyle = sColor;
+                    if (s === "2d") {
+                        ctx.fillText(s, scx, syL + fontSize * 0.85);
+                    } else {
+                        ctx.fillText(s, scx, syH - fontSize * 0.85);
+                    }
+                }
             }
         }
     }
@@ -458,6 +502,61 @@ Item {
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.bodySmall
                 font.bold: true
+            }
+
+            Rectangle {
+                visible: root.hoverCandle && root.hoverCandle.strat && root.hoverCandle.strat !== "-"
+                radius: Style.space(3)
+                anchors.verticalCenter: parent.verticalCenter
+                color: {
+                    if (!root.hoverCandle)
+                        return "transparent";
+                    var s = root.hoverCandle.strat;
+                    if (s === "2u")
+                        return Qt.rgba(root.upColor.r, root.upColor.g, root.upColor.b, 0.22);
+                    if (s === "2d")
+                        return Qt.rgba(root.downColor.r, root.downColor.g, root.downColor.b, 0.22);
+                    if (s === "3")
+                        return Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.22);
+                    return Qt.rgba(Color.muted.r, Color.muted.g, Color.muted.b, 0.18);
+                }
+                border.width: 1
+                border.color: {
+                    if (!root.hoverCandle)
+                        return "transparent";
+                    var s = root.hoverCandle.strat;
+                    if (s === "2u")
+                        return root.upColor;
+                    if (s === "2d")
+                        return root.downColor;
+                    if (s === "3")
+                        return Color.accent;
+                    return Color.muted;
+                }
+                implicitWidth: stratText.implicitWidth + Style.space(8)
+                implicitHeight: stratText.implicitHeight + Style.space(2)
+
+                Text {
+                    id: stratText
+                    anchors.centerIn: parent
+                    textFormat: Text.PlainText
+                    text: root.hoverCandle && root.hoverCandle.strat ? root.hoverCandle.strat : ""
+                    color: {
+                        if (!root.hoverCandle)
+                            return Color.foreground;
+                        var s = root.hoverCandle.strat;
+                        if (s === "2u")
+                            return root.upColor;
+                        if (s === "2d")
+                            return root.downColor;
+                        if (s === "3")
+                            return Color.accent;
+                        return Color.foreground;
+                    }
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.bodySmall
+                    font.bold: true
+                }
             }
 
             Text {
