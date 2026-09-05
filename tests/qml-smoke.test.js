@@ -10,6 +10,7 @@ const qmlFiles = [
   "BarWidget.qml",
   "Panel.qml",
   "Sparkline.qml",
+  "CandlestickChart.qml",
   "FinanceListView.qml",
   "FinanceSettingsView.qml",
   "FinanceDetailView.qml",
@@ -179,6 +180,22 @@ test("sparklines cache normalized geometry for paint and hover", () => {
   assert.match(sparkline, /var g = root\.cachedGeometry/)
   assert.match(sparkline, /onValuesChanged:\s*refreshGeometry\(\)/)
   assert.match(sparkline, /onPadChanged:\s*refreshGeometry\(\)/)
+})
+
+test("candlestick chart renders OHLC candles and interactive crosshairs", () => {
+  const candleChart = fs.readFileSync(source("CandlestickChart.qml"), "utf8")
+  const detail = fs.readFileSync(source("FinanceDetailView.qml"), "utf8")
+
+  assert.match(candleChart, /property var candles:\s*\[\]/)
+  assert.match(candleChart, /property string symbol:\s*""/)
+  assert.match(candleChart, /onSymbolChanged:\s*resetZoom\(\)/)
+  assert.match(candleChart, /onRangeKeyChanged:\s*resetZoom\(\)/)
+  assert.match(candleChart, /onCandlesChanged:\s*refreshGeometry\(\)/)
+  assert.match(candleChart, /function buildGeom\(\)/)
+  assert.match(candleChart, /updateHover\(mouse\.x\)/)
+  assert.match(candleChart, /ctx\.fillRect\(bodyLeft, bodyTop/)
+  assert.match(detail, /\bCandlestickChart\s*\{/)
+  assert.match(detail, /symbol:\s*controller\.detailSymbol/)
 })
 
 test("detail price changes use tone-colored text without pill backgrounds", () => {
