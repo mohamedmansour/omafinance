@@ -195,7 +195,6 @@ test("candlestick chart renders OHLC candles and interactive crosshairs", () => 
   assert.match(candleChart, /function buildGeom\(\)/)
   assert.match(candleChart, /updateHover\(mouse\.x\)/)
   assert.match(candleChart, /ctx\.fillRect\(bodyLeft, bodyTop/)
-  assert.match(candleChart, /ctx\.fillText\(s,\s*scx/)
   assert.match(detail, /\bCandlestickChart\s*\{/)
   assert.match(detail, /symbol:\s*controller\.detailSymbol/)
 })

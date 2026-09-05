@@ -73,8 +73,8 @@ Item {
         var total = all.length;
         var w = width;
         var h = height;
-        var topPad = root.pad + Style.space(20);
-        var botPad = root.pad + Style.space(12);
+        var topPad = root.pad + Style.space(16);
+        var botPad = root.pad + Style.space(4);
         var left = root.pad;
         var right = Math.max(left + 1, w - root.pad);
         var top = topPad;
@@ -265,39 +265,6 @@ Item {
                 var bodyHeight = Math.max(1.5, Math.abs(yC - yO));
                 var bodyLeft = Math.round(cx - halfW);
                 ctx.fillRect(bodyLeft, bodyTop, Math.max(1, Math.round(cW)), bodyHeight);
-            }
-
-            // Strat numbers rendering
-            if (g.slotW >= 6 && g.strats && g.strats.length > 0) {
-                var fontSize = Math.max(9, Math.min(11, Math.round(g.slotW * 0.55)));
-                ctx.font = "bold " + fontSize + "px " + root.fontFamily;
-                ctx.textAlign = "center";
-                ctx.textBaseline = "middle";
-
-                for (var si = 0; si < len; si++) {
-                    var s = g.strats[si];
-                    if (!s || s === "-")
-                        continue;
-
-                    var scx = Math.round(g.xs[si]) + 0.5;
-                    var syH = Math.round(g.yHighs[si]);
-                    var syL = Math.round(g.yLows[si]);
-
-                    var sColor = root.labelColor;
-                    if (s === "2u")
-                        sColor = root.upColor;
-                    else if (s === "2d")
-                        sColor = root.downColor;
-                    else if (s === "3")
-                        sColor = Color.accent;
-
-                    ctx.fillStyle = sColor;
-                    if (s === "2d") {
-                        ctx.fillText(s, scx, syL + fontSize * 0.85);
-                    } else {
-                        ctx.fillText(s, scx, syH - fontSize * 0.85);
-                    }
-                }
             }
         }
     }
