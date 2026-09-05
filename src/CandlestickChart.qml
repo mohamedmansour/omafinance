@@ -475,18 +475,7 @@ Item {
                 visible: root.hoverCandle && root.hoverCandle.strat && root.hoverCandle.strat !== "-"
                 textFormat: Text.PlainText
                 text: root.hoverCandle && root.hoverCandle.strat ? root.hoverCandle.strat : ""
-                color: {
-                    if (!root.hoverCandle)
-                        return Color.foreground;
-                    var s = root.hoverCandle.strat;
-                    if (s === "2u")
-                        return root.upColor;
-                    if (s === "2d")
-                        return root.downColor;
-                    if (s === "3")
-                        return Color.accent;
-                    return Color.muted;
-                }
+                color: root.hoverCandle && root.hoverCandle.close >= root.hoverCandle.open ? root.upColor : root.downColor
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.bodySmall
                 font.bold: true
