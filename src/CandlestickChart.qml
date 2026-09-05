@@ -504,26 +504,13 @@ Item {
                 font.bold: true
             }
 
-            Rectangle {
+            Text {
                 visible: root.hoverCandle && root.hoverCandle.strat && root.hoverCandle.strat !== "-"
-                radius: Style.space(3)
-                anchors.verticalCenter: parent.verticalCenter
+                textFormat: Text.PlainText
+                text: root.hoverCandle && root.hoverCandle.strat ? root.hoverCandle.strat : ""
                 color: {
                     if (!root.hoverCandle)
-                        return "transparent";
-                    var s = root.hoverCandle.strat;
-                    if (s === "2u")
-                        return Qt.rgba(root.upColor.r, root.upColor.g, root.upColor.b, 0.22);
-                    if (s === "2d")
-                        return Qt.rgba(root.downColor.r, root.downColor.g, root.downColor.b, 0.22);
-                    if (s === "3")
-                        return Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.22);
-                    return Qt.rgba(Color.muted.r, Color.muted.g, Color.muted.b, 0.18);
-                }
-                border.width: 1
-                border.color: {
-                    if (!root.hoverCandle)
-                        return "transparent";
+                        return Color.foreground;
                     var s = root.hoverCandle.strat;
                     if (s === "2u")
                         return root.upColor;
@@ -533,30 +520,9 @@ Item {
                         return Color.accent;
                     return Color.muted;
                 }
-                implicitWidth: stratText.implicitWidth + Style.space(8)
-                implicitHeight: stratText.implicitHeight + Style.space(2)
-
-                Text {
-                    id: stratText
-                    anchors.centerIn: parent
-                    textFormat: Text.PlainText
-                    text: root.hoverCandle && root.hoverCandle.strat ? root.hoverCandle.strat : ""
-                    color: {
-                        if (!root.hoverCandle)
-                            return Color.foreground;
-                        var s = root.hoverCandle.strat;
-                        if (s === "2u")
-                            return root.upColor;
-                        if (s === "2d")
-                            return root.downColor;
-                        if (s === "3")
-                            return Color.accent;
-                        return Color.foreground;
-                    }
-                    font.family: root.fontFamily
-                    font.pixelSize: Style.font.bodySmall
-                    font.bold: true
-                }
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.bodySmall
+                font.bold: true
             }
 
             Text {
