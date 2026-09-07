@@ -2,6 +2,8 @@ const test = require("node:test")
 const assert = require("node:assert/strict")
 
 const Model = require("../src/Model.js")
+// Yahoo request-building and response parsing now live behind the provider.
+const Yahoo = require("../src/Providers/Yahoo.js").create(Model)
 
 test("missing numeric values stay missing", () => {
   assert.equal(Model.formatPrice(null, "USD", 2), "-")
@@ -10,7 +12,7 @@ test("missing numeric values stay missing", () => {
   assert.equal(Model.formatCompact(""), "-")
   assert.equal(Model.formatCompact("   "), "-")
   assert.equal(Model.changeTone(null), "flat")
-  assert.deepEqual(Model.buildDetailStats({}, { beta: null }, {}), [])
+  assert.deepEqual(Yahoo.detailStats({}, { quotePage: { beta: null }, insights: {} }), [])
 })
 
 test("zero remains a valid numeric value", () => {
@@ -44,14 +46,14 @@ test("retry delay backs off exponentially and respects its ceiling", () => {
 })
 
 test("insights response validation rejects transport payloads and API errors", () => {
-  assert.equal(Model.isInsightsResponse(""), false)
-  assert.equal(Model.isInsightsResponse("not json"), false)
-  assert.equal(Model.isInsightsResponse(JSON.stringify({
+  assert.equal(Yahoo.parseDetail("insights", ""), null)
+  assert.equal(Yahoo.parseDetail("insights", "not json"), null)
+  assert.equal(Yahoo.parseDetail("insights", JSON.stringify({
     finance: { result: null, error: { code: "Unavailable" } }
-  })), false)
-  assert.equal(Model.isInsightsResponse(JSON.stringify({
+  })), null)
+  assert.notEqual(Yahoo.parseDetail("insights", JSON.stringify({
     finance: { result: { recommendation: {} }, error: null }
-  })), true)
+  })), null)
 })
 
 test("search includes commodity futures while excluding options", () => {
@@ -81,7 +83,7 @@ test("search includes commodity futures while excluding options", () => {
     ]
   })
 
-  assert.deepEqual(Model.parseSearch(raw), [
+  assert.deepEqual(Yahoo.parseSearch(raw), [
     {
       symbol: "SI=F",
       name: "Silver Futures",
@@ -113,7 +115,7 @@ test("chart parser does not turn missing quote fields into zero", () => {
     }
   })
 
-  const quote = Model.parseChart(raw)
+  const quote = Yahoo.parseChart(raw)
   assert.equal(quote.price, null)
   assert.equal(quote.changePercent, null)
   assert.equal(quote.regularPrice, null)
@@ -138,7 +140,7 @@ test("chart parser calculates change when Yahoo omits the percentage", () => {
     }
   })
 
-  const quote = Model.parseChart(raw)
+  const quote = Yahoo.parseChart(raw)
   assert.equal(quote.price, 105)
   assert.equal(quote.changePercent, 5)
 })
