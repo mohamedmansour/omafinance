@@ -7,6 +7,7 @@ import "Model.js" as Model
 import "Providers/Registry.js" as Registry
 import "Providers/Yahoo.js" as Yahoo
 import "Providers/BankOfCanada.js" as BankOfCanada
+import "Providers/Frankfurter.js" as Frankfurter
 
 Panel {
     id: root
@@ -26,6 +27,7 @@ Panel {
             Registry.markBootstrapped();
             registerProvider(Yahoo);
             registerProvider(BankOfCanada);
+            registerProvider(Frankfurter);
         }
         return Registry;
     }
