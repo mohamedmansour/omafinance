@@ -264,11 +264,21 @@ function priceDecimals(price, hint) {
   return 6
 }
 
+// A provider that quotes a rate rather than a price sets currency to RATE_UNIT.
+// The value is then a percentage, and a change in it is measured in percentage
+// points rather than in any currency.
+var RATE_UNIT = "%"
+
+function isRateUnit(currency) {
+  return String(currency || "") === RATE_UNIT
+}
+
 function formatPrice(price, currency, hint) {
   var n = finiteOrNull(price)
   if (n === null) return "-"
   var body = withCommas(n.toFixed(priceDecimals(n, hint)))
   var code = String(currency || "USD")
+  if (isRateUnit(code)) return body + RATE_UNIT
   if (code === "USD") return "$" + body
   return body + " " + code
 }
@@ -284,6 +294,9 @@ function formatChange(amount, currency, hint) {
   var n = Number(amount)
   if (!isFinite(n)) return "-"
   var sign = n > 0 ? "+" : (n < 0 ? "-" : "")
+  // Rates are quoted to two decimals, so a sub-0.01 move is 0.00 pp rather than
+  // the long tail priceDecimals would give a sub-cent price move.
+  if (isRateUnit(currency)) return sign + withCommas(Math.abs(n).toFixed(2)) + " pp"
   var decimals = Math.abs(n) >= 0.01 ? 2 : priceDecimals(n, hint)
   var body = withCommas(Math.abs(n).toFixed(decimals))
   if (String(currency || "USD") === "USD") return sign + "$" + body
@@ -332,8 +345,10 @@ function changeTone(pct) {
   return n > 0 ? "up" : "down"
 }
 
+// The first argument is a provider-supplied display label rather than a raw
+// symbol, so it is only trimmed - uppercasing would mangle names like "GoC 5Y".
 function barLabel(pinned, quote, vertical, showTicker, showPrice, showChange, style) {
-  var symbol = normalizeSymbol(pinned)
+  var symbol = String(pinned || "").replace(/^\s+|\s+$/g, "")
   if (!symbol) return "$"
   var parts = []
   if (showTicker !== false) parts.push(symbol)
@@ -374,6 +389,8 @@ if (typeof module !== "undefined") {
     defaultState: defaultState,
     normalizeSymbol: normalizeSymbol,
     finiteOrNull: finiteOrNull,
+    RATE_UNIT: RATE_UNIT,
+    isRateUnit: isRateUnit,
     parseState: parseState,
     serializeState: serializeState,
     addSymbol: addSymbol,

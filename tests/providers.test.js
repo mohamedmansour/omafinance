@@ -212,3 +212,21 @@ test("the range chips highlight the range actually rendered", () => {
   assert.match(detail, /String\(modelData\) === controller\.effectiveDetailRange/)
   assert.doesNotMatch(detail, /String\(modelData\) === controller\.detailRange/)
 })
+
+// --- rate formatting ---
+
+test("rates format as percentages and their moves as percentage points", () => {
+  assert.equal(Model.formatPrice(3.41, Model.RATE_UNIT, 2), "3.41%")
+  assert.equal(Model.formatChange(-0.01, Model.RATE_UNIT), "-0.01 pp")
+  assert.equal(Model.formatChange(0, Model.RATE_UNIT), "0.00 pp")
+  // Currency behaviour must be untouched by the rate path.
+  assert.equal(Model.formatPrice(321.02, "USD", 2), "$321.02")
+  assert.equal(Model.formatChange(-1.5, "USD"), "-$1.50")
+  assert.equal(Model.formatPrice(133.86, "CAD", 2), "133.86 CAD")
+})
+
+test("bar labels keep provider casing instead of uppercasing", () => {
+  const quote = { price: 3.41, currency: Model.RATE_UNIT, changePercent: -0.29, priceHint: 2 }
+  assert.match(Model.barLabel("GoC 5Y", quote, false, true, true, true, "percent"), /^GoC 5Y {2}3\.41%/)
+  assert.match(Model.barLabel("AAPL", { price: 1, currency: "USD" }, false, true, true, false, "percent"), /^AAPL/)
+})
