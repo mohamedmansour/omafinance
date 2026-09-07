@@ -6,6 +6,7 @@ import qs.Ui
 import "Model.js" as Model
 import "Providers/Registry.js" as Registry
 import "Providers/Yahoo.js" as Yahoo
+import "Providers/BankOfCanada.js" as BankOfCanada
 
 Panel {
     id: root
@@ -24,6 +25,7 @@ Panel {
         if (!Registry.bootstrapped()) {
             Registry.markBootstrapped();
             registerProvider(Yahoo);
+            registerProvider(BankOfCanada);
         }
         return Registry;
     }

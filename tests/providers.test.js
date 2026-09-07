@@ -230,3 +230,87 @@ test("bar labels keep provider casing instead of uppercasing", () => {
   assert.match(Model.barLabel("GoC 5Y", quote, false, true, true, true, "percent"), /^GoC 5Y {2}3\.41%/)
   assert.match(Model.barLabel("AAPL", { price: 1, currency: "USD" }, false, true, true, false, "percent"), /^AAPL/)
 })
+
+// --- Bank of Canada -------------------------------------------------------
+
+const BankOfCanada = require("../src/Providers/BankOfCanada.js")
+
+function withBoc() {
+  const R = freshRegistry()
+  R.register(BankOfCanada.create(Model))
+  return R
+}
+
+test("namespaced refs resolve to their provider and round-trip", () => {
+  const R = withBoc()
+  const parsed = R.parseRef("BOC:BD.CDN.5YR.DQ.YLD")
+  assert.equal(parsed.providerId, "boc")
+  assert.equal(parsed.id, "BD.CDN.5YR.DQ.YLD")
+  assert.equal(parsed.explicit, true)
+  assert.equal(R.formatRef(parsed.providerId, parsed.id), "BOC:BD.CDN.5YR.DQ.YLD")
+})
+
+test("watchlists split into one batch per provider, preserving order", () => {
+  const R = withBoc()
+  const groups = R.groupByProvider(["EQB.TO", "BOC:V80691335", "AAPL", "BOC:BD.CDN.5YR.DQ.YLD"])
+  assert.equal(groups.length, 2)
+  assert.deepEqual(groups[0].ids, ["EQB.TO", "AAPL"])
+  assert.deepEqual(groups[1].ids, ["V80691335", "BD.CDN.5YR.DQ.YLD"])
+})
+
+test("capabilities differ per provider", () => {
+  const R = withBoc()
+  assert.equal(R.supports("AAPL", "detail"), true)
+  assert.equal(R.supports("AAPL", "extendedHours"), true)
+  assert.equal(R.supports("BOC:V80691335", "detail"), false)
+  assert.equal(R.supports("BOC:V80691335", "quote"), true)
+})
+
+test("a provider without intraday data has 1D trimmed from its ranges", () => {
+  const R = withBoc()
+  const canonical = Model.chartRanges()
+  assert.deepEqual(R.chartRangesFor("AAPL", canonical), canonical)
+  const boc = R.chartRangesFor("BOC:BD.CDN.5YR.DQ.YLD", canonical)
+  assert.equal(boc.includes("1D"), false)
+  assert.equal(boc[0], "1W")
+})
+
+test("Bank of Canada rebuilds dense series from sparse, unsorted rows", () => {
+  const B = BankOfCanada.create(Model)
+  // Valet returns rows out of order, and a batch of mixed frequencies yields
+  // rows carrying only whichever series reported that day.
+  const quotes = B.parseQuotes(JSON.stringify({
+    seriesDetail: {
+      "BD.CDN.5YR.DQ.YLD": { label: "Benchmark bond yield: 5 year" },
+      V80691335: { label: "Conventional mortgage: 5-year" }
+    },
+    observations: [
+      { d: "2026-09-02", V80691335: { v: "6.09" }, "BD.CDN.5YR.DQ.YLD": { v: "3.42" } },
+      { d: "2026-09-03", "BD.CDN.5YR.DQ.YLD": { v: "3.41" } },
+      { d: "2026-09-01", "BD.CDN.5YR.DQ.YLD": { v: "3.30" } }
+    ]
+  }))
+  const yield5 = quotes["BD.CDN.5YR.DQ.YLD"]
+  assert.deepEqual(yield5.closes, [3.30, 3.42, 3.41], "series must be date-ascending")
+  assert.equal(yield5.price, 3.41)
+  assert.equal(yield5.asOf, "2026-09-03")
+  assert.equal(yield5.currency, Model.RATE_UNIT)
+  // The weekly series reported on only one of the three days.
+  assert.deepEqual(quotes.V80691335.closes, [6.09])
+})
+
+
+test("catalogue search matches however the term is punctuated", () => {
+  const B = BankOfCanada.create(Model)
+  const ids = q => B.searchLocal(q).map(r => r.symbol)
+  assert.deepEqual(ids("5 year"), ids("5-year"))
+  assert.deepEqual(ids("5 year"), ids("5yr"))
+  assert.ok(ids("mortgage").includes("V80691335"))
+})
+
+test("every catalogue entry has a short label for the bar", () => {
+  for (const row of BankOfCanada.CATALOGUE) {
+    assert.ok(row.short, `${row.id} has no short label`)
+    assert.ok(row.short.length <= 14, `${row.id} short label is too long for a bar`)
+  }
+})
