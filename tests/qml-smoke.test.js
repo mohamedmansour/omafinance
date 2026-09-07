@@ -71,7 +71,9 @@ test("background quote refreshes do not show updating status", () => {
 
   assert.doesNotMatch(panel, /Updating quotes/)
   assert.doesNotMatch(panel, /Updating chart/)
-  assert.match(panel, /quoteProc\.running\)\s*return hasQuotes \? "" : "Loading quotes…";/)
+  // A drain now spans several requests, so the idle gap between two of them
+  // must still read as loading rather than flashing the previous error.
+  assert.match(panel, /quoteProc\.running \|\| quoteQueue\.length > 0\)\s*return hasQuotes \? "" : "Loading quotes…";/)
   assert.match(panel, /chartProc\.running && currentFetch\)\s*return rangeChart \? "" : "Loading chart…";/)
   assert.match(panel, /return showLastUpdated && chartUpdatedAt > 0 && detailQuote \? "Last updated "/)
 })
@@ -80,7 +82,10 @@ test("quote refresh uses symbols selected for the active view", () => {
   const panel = fs.readFileSync(source("Panel.qml"), "utf8")
 
   assert.match(panel, /quoteSymbolsForView\(watchlist, detailSymbol, view\)/)
-  assert.match(panel, /Model\.sparkUrl\(quoteSymbols\)/)
+  // The spark URL now belongs to the Yahoo provider; what matters here is that
+  // the fan-out is still built from the view-selected symbols, not the whole
+  // watchlist.
+  assert.match(panel, /groupByProvider\(quoteSymbols\)/)
 })
 
 test("detail loading is a delayed icon beside the ticker", () => {

@@ -119,7 +119,7 @@ Column {
             Text {
                 id: tickerLabel
                 textFormat: Text.PlainText
-                text: controller.detailSymbol
+                text: controller.displayLabelFor(controller.detailSymbol)
                 color: controller.dim
                 font.family: controller.contentFontFamily
                 font.pixelSize: Style.font.body
@@ -278,7 +278,7 @@ Column {
 
             Rectangle {
                 required property var modelData
-                readonly property bool current: String(modelData) === controller.detailRange
+                readonly property bool current: String(modelData) === controller.effectiveDetailRange
                 radius: Style.space(6)
                 color: current ? Style.hoverFillFor(controller.contentForeground, Color.accent) : "transparent"
                 implicitWidth: rangeLabel.implicitWidth + Style.space(14)

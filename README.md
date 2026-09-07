@@ -13,12 +13,32 @@
 - **Watchlist** - symbol, name, sparkline, price, and change pill
 - **Search** - look up a ticker, open it, then Favorite to keep it
 - **Crypto** - Yahoo-style symbols such as `BTC-USD` and `ETH-USD`
+- **Rates and FX** - Canadian bond yields and mortgage rates, and ECB exchange rates, alongside tickers
 - **Pin rotation** - pin several tickers; the bar cycles them every 5 seconds
 - **Detail chart** - `1D` `1W` `1M` `YTD` `1Y` `5Y` `All`, with range % and hover price
 - **Fundamentals** - market cap, P/E, dividends, next earnings, 52-week range, target, rating
 - **Remembered prefs** - watchlist, pins, and last chart range
 
-No API key. Quotes come from Yahoo Finance.
+No API key. Quotes come from Yahoo Finance; rates and exchange rates come from
+the Bank of Canada and the European Central Bank (see [Data sources](#data-sources)).
+
+## Data sources
+
+A watchlist entry is either a plain ticker, which comes from Yahoo Finance, or a
+`provider:id` pair. Type the prefix into the search box to search that provider.
+
+| Prefix | Source | Example |
+|---|---|---|
+| *(none)* | Yahoo Finance | `AAPL`, `BTC-USD` |
+| `boc:` | Bank of Canada ([Valet](https://www.bankofcanada.ca/valet/docs)) | `boc:mortgage` to search, or `BOC:BD.CDN.5YR.DQ.YLD` |
+| `fx:` | European Central Bank ([Frankfurter](https://frankfurter.dev)) | `fx:cad` to search, or `FX:USD/CAD` |
+
+Rates are shown as percentages, and a change in one is shown in percentage
+points (`+0.05 pp`) rather than as a currency amount.
+
+Existing watchlists are unaffected - a plain ticker keeps working exactly as
+before. To add a source of your own, see
+[`src/Providers/README.md`](src/Providers/README.md).
 
 ## Install
 
@@ -83,7 +103,12 @@ Watchlist, pinned tickers, and chart range:
 ~/.local/state/omarchy/settings/finance.json
 ```
 
-Quotes are fetched with `curl` from Yahoo Finance. Nothing is sent to this project’s servers.
+Quotes are fetched with `curl`, directly from whichever source a watchlist entry
+belongs to: `query1`/`query2.finance.yahoo.com` and `finance.yahoo.com` for
+tickers, `www.bankofcanada.ca` for `boc:` entries, and `api.frankfurter.dev` for
+`fx:` entries. Only the symbols you watch, and what you type into the search box,
+are sent. Nothing is sent to this project’s servers, and no source is contacted
+unless your watchlist contains an entry that belongs to it.
 
 ## Tests
 

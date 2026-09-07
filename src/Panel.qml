@@ -4,12 +4,147 @@ import Quickshell.Io
 import qs.Commons
 import qs.Ui
 import "Model.js" as Model
+import "Providers/Registry.js" as Registry
+import "Providers/Yahoo.js" as Yahoo
+import "Providers/BankOfCanada.js" as BankOfCanada
+import "Providers/Frankfurter.js" as Frankfurter
 
 Panel {
     id: root
     moduleName: "mohamedmansour.finance"
     ipcTarget: "mohamedmansour.finance"
     manageIpc: false
+
+    // Providers are wired up here rather than inside Registry.js because
+    // `.import` is QML-only syntax that Node cannot require, and the registry
+    // has to stay loadable by the test suite.
+    //
+    // Registration is lazy: QML evaluates property bindings before
+    // Component.onCompleted runs, so registering there would let the first
+    // round of bindings observe an empty registry.
+    function registry() {
+        if (!Registry.bootstrapped()) {
+            Registry.markBootstrapped();
+            registerProvider(Yahoo);
+            registerProvider(BankOfCanada);
+            registerProvider(Frankfurter);
+        }
+        return Registry;
+    }
+
+    // Registration is per-provider so one that fails to construct is reported
+    // and skipped, rather than stranding every provider after it.
+    function registerProvider(module) {
+        try {
+            Registry.register(module.create(Model));
+        } catch (error) {
+            console.warn("omafinance: provider failed to register - " + error.message);
+        }
+    }
+
+    function providerFor(ref) {
+        return registry().resolve(ref);
+    }
+
+    function providerIdFor(ref) {
+        return registry().parseRef(ref).id;
+    }
+
+    function providerSupports(ref, capability) {
+        return registry().supports(ref, capability);
+    }
+
+    // What the bar and list show for a ref, so a raw source id - a Valet series,
+    // say - never has to be readable on its own.
+    function displayLabelFor(ref) {
+        var provider = providerFor(ref);
+        var id = providerIdFor(ref);
+        if (provider && typeof provider.displayLabel === "function")
+            return provider.displayLabel(id, quotes[ref] || null) || id;
+        return id;
+    }
+
+    // The detail payloads a provider publishes, in its own vocabulary. Yahoo
+    // happens to use "insights" and "quotePage"; nothing here assumes that.
+    function detailKinds(ref) {
+        var provider = providerFor(ref);
+        if (!provider || !providerSupports(ref, "detail") || typeof provider.detailRequests !== "function")
+            return [];
+        var requests = provider.detailRequests(providerIdFor(ref)) || [];
+        var kinds = [];
+        for (var i = 0; i < requests.length; i++) {
+            if (requests[i] && requests[i].kind)
+                kinds.push(String(requests[i].kind));
+        }
+        return kinds;
+    }
+
+    // There are two detail process slots, so a provider's first two declared
+    // kinds are the ones fetched. Yahoo declares exactly two.
+    function detailKindFor(index) {
+        var kinds = detailKindList;
+        return index < kinds.length ? kinds[index] : "";
+    }
+
+    function detailRequest(ref, kind) {
+        if (!kind)
+            return null;
+        var provider = providerFor(ref);
+        if (!provider || !providerSupports(ref, "detail") || typeof provider.detailRequests !== "function")
+            return null;
+        var requests = provider.detailRequests(providerIdFor(ref)) || [];
+        for (var i = 0; i < requests.length; i++) {
+            if (requests[i] && requests[i].kind === kind && registry().isRequest(requests[i]))
+                return requests[i];
+        }
+        return null;
+    }
+
+    // Null means the payload was unusable, which makes the caller count a
+    // failure and retry with backoff. Validating is the provider's job, since
+    // only it knows what a valid response looks like - Yahoo, for one, answers
+    // some errors with HTTP 200.
+    function parseDetailPayload(ref, kind, raw) {
+        var provider = providerFor(ref);
+        if (!provider || typeof provider.parseDetail !== "function")
+            return null;
+        return provider.parseDetail(kind, raw);
+    }
+
+    // Typing "boc:mortgage" searches that provider; a bare query searches the
+    // default one. The prefix is consumed here so providers never see it.
+    function searchProvider(query) {
+        return registry().provider(registry().parseQuery(query).providerId);
+    }
+
+    function searchTerm(query) {
+        return registry().parseQuery(query).term;
+    }
+
+    // Suggestion rows arrive keyed by the provider's own id and are promoted to
+    // namespaced refs, so picking one adds an entry that resolves back to the
+    // provider it came from.
+    function namespaceSuggestions(provider, rows) {
+        var list = rows || [];
+        var out = [];
+        for (var i = 0; i < list.length; i++) {
+            var row = list[i];
+            if (!row || !row.symbol)
+                continue;
+            out.push({
+                symbol: registry().formatRef(provider ? provider.id : "", row.symbol),
+                name: row.name,
+                type: row.type,
+                exchange: row.exchange
+            });
+        }
+        return out;
+    }
+
+    function applySuggestions(provider, rows) {
+        suggestions = namespaceSuggestions(provider, rows);
+        suggestionIndex = 0;
+    }
 
     property var anchorItem: null
     property bool openedFromHotkey: false
@@ -31,6 +166,20 @@ Panel {
     property string insightsFetchSymbol: ""
     property string quotePageFetchSymbol: ""
     property bool quoteRefreshPending: false
+
+    // One refresh fans out into a queue of requests: a watchlist can span
+    // providers, and a provider may itself need several calls. These track the
+    // request in flight and the tally that decides overall success.
+    property var quoteQueue: []
+    property string quoteBatchProviderId: ""
+    property var quoteBatchIds: []
+    property bool quoteBatchSplit: false
+    property int quoteBatchOk: 0
+    property int quoteBatchFailed: 0
+    property int quoteBatchMissing: 0
+    property var providerFetchedAt: ({})
+    property int quoteUnservable: 0
+    property int quoteThrottled: 0
     property int quoteFailureCount: 0
     property string quoteError: ""
     property double quotesUpdatedAt: 0
@@ -105,12 +254,15 @@ Panel {
     readonly property string barSymbol: Model.barSymbol(pinned, watchlist, pinIndex)
     readonly property var quoteSymbols: Model.quoteSymbolsForView(watchlist, detailSymbol, view)
     readonly property var pinnedQuote: quotes[barSymbol] || null
-    readonly property string label: Model.barLabel(barSymbol, pinnedQuote, false, showTicker, showPrice, showChange, changeStyle)
-    readonly property string verticalLabel: Model.barLabel(barSymbol, pinnedQuote, true, showTicker, showPrice, showChange, changeStyle)
+    readonly property string barDisplayLabel: displayLabelFor(barSymbol)
+    readonly property string label: Model.barLabel(barDisplayLabel, pinnedQuote, false, showTicker, showPrice, showChange, changeStyle)
+    readonly property string verticalLabel: Model.barLabel(barDisplayLabel, pinnedQuote, true, showTicker, showPrice, showChange, changeStyle)
     readonly property string labelTone: Model.barLabelTone(pinnedQuote, showTicker, showPrice, showChange, changeStyle)
     readonly property string quoteStatusText: {
         var hasQuotes = Object.keys(quotes || {}).length > 0;
-        if (quoteProc.running)
+        // A drain spans several requests, so the process being idle between two
+        // of them does not mean the refresh has finished.
+        if (quoteProc.running || quoteQueue.length > 0)
             return hasQuotes ? "" : "Loading quotes…";
         if (quoteError) {
             var suffix = showLastUpdated && quotesUpdatedAt > 0 ? " · Last updated " + timeLabel(quotesUpdatedAt) : "";
@@ -119,7 +271,7 @@ Panel {
         return showLastUpdated && quotesUpdatedAt > 0 ? "Updated " + timeLabel(quotesUpdatedAt) : "";
     }
     readonly property string chartStatusText: {
-        var currentFetch = chartFetchSymbol === detailSymbol && chartFetchRange === detailRange;
+        var currentFetch = chartFetchSymbol === detailSymbol && chartFetchRange === effectiveDetailRange;
         if (chartProc.running && currentFetch)
             return rangeChart ? "" : "Loading chart…";
         if (chartError)
@@ -140,31 +292,60 @@ Panel {
             errors.push(quotePageError);
         return errors.join(" · ");
     }
-    readonly property var detailRanges: Model.chartRanges()
+    // A provider that cannot serve intraday data has 1D trimmed, so the detail
+    // view never offers a range the source will not answer.
+    readonly property var detailRanges: registry().chartRangesFor(detailSymbol, Model.chartRanges())
+
+    // The saved range is global, but a provider may not support it. Clamping is
+    // kept to the view instead of being written back, so opening a daily series
+    // cannot degrade every later intraday symbol.
+    readonly property string effectiveDetailRange: {
+        var ranges = detailRanges;
+        if (!detailSymbol || ranges.indexOf(detailRange) !== -1)
+            return detailRange;
+        return ranges.length ? ranges[0] : detailRange;
+    }
     readonly property var activeQuote: quotes[detailSymbol] || detailQuote
     readonly property var rangeChart: {
-        if (detailQuote && detailQuote.chartRange === detailRange)
+        if (detailQuote && detailQuote.chartRange === effectiveDetailRange)
             return detailQuote;
-        if (detailRange === "1D" && quotes[detailSymbol])
+        if (effectiveDetailRange === "1D" && quotes[detailSymbol])
             return quotes[detailSymbol];
         return null;
     }
-    readonly property var detailStats: Model.buildDetailStats(activeQuote, detailPage, detailInsights)
-    readonly property var detailRangeChange: Model.rangeChangePercent(rangeChart, detailRange)
-    readonly property var detailRangeChangeAmount: Model.rangeChangeAmount(rangeChart, detailRange)
+    // Each provider decides what its detail rows are; one with no fundamentals
+    // returns none and the section collapses.
+    readonly property var detailKindList: detailKinds(detailSymbol)
+
+    // The two payload slots are handed back under the provider's own kind
+    // names, so nothing outside the provider needs to know what they mean.
+    readonly property var detailStats: {
+        var p = providerFor(detailSymbol);
+        if (!p || !providerSupports(detailSymbol, "detail") || typeof p.detailStats !== "function")
+            return [];
+        var bag = {};
+        var kinds = detailKindList;
+        if (kinds.length > 0)
+            bag[kinds[0]] = detailInsights;
+        if (kinds.length > 1)
+            bag[kinds[1]] = detailPage;
+        return p.detailStats(activeQuote, bag) || [];
+    }
+    readonly property var detailRangeChange: Model.rangeChangePercent(rangeChart, effectiveDetailRange)
+    readonly property var detailRangeChangeAmount: Model.rangeChangeAmount(rangeChart, effectiveDetailRange)
     readonly property var sessionQuote: quotes[detailSymbol] || rangeChart || activeQuote
     readonly property var detailMainPrice: {
-        if (detailRange === "1D" && sessionQuote && sessionQuote.regularPrice != null)
+        if (effectiveDetailRange === "1D" && sessionQuote && sessionQuote.regularPrice != null)
             return sessionQuote.regularPrice;
         return activeQuote ? activeQuote.price : null;
     }
     readonly property var detailMainChange: {
-        if (detailRange === "1D" && sessionQuote && sessionQuote.regularChangePercent != null)
+        if (effectiveDetailRange === "1D" && sessionQuote && sessionQuote.regularChangePercent != null)
             return sessionQuote.regularChangePercent;
         return detailRangeChange;
     }
     readonly property var detailMainChangeAmount: {
-        if (detailRange === "1D" && sessionQuote && sessionQuote.regularPrice != null && sessionQuote.previousClose != null)
+        if (effectiveDetailRange === "1D" && sessionQuote && sessionQuote.regularPrice != null && sessionQuote.previousClose != null)
             return sessionQuote.regularPrice - sessionQuote.previousClose;
         return detailRangeChangeAmount;
     }
@@ -173,9 +354,9 @@ Panel {
     readonly property bool awaitingRangeChart: {
         if (view !== "detail" || !detailSymbol)
             return false;
-        if (detailQuote && detailQuote.chartRange === detailRange)
+        if (detailQuote && detailQuote.chartRange === effectiveDetailRange)
             return false;
-        if (detailRange === "1D" && quotes[detailSymbol])
+        if (effectiveDetailRange === "1D" && quotes[detailSymbol])
             return false;
         return true;
     }
@@ -195,13 +376,13 @@ Panel {
             return detailMainChangeAmount;
         return heldMainChangeAmount;
     }
-    readonly property bool showExtended: detailRange === "1D" && sessionQuote && sessionQuote.hasExtended === true
+    readonly property bool showExtended: effectiveDetailRange === "1D" && providerSupports(detailSymbol, "extendedHours") && sessionQuote && sessionQuote.hasExtended === true
     readonly property var extendedChangeAmount: {
         if (!sessionQuote || sessionQuote.extendedPrice == null || sessionQuote.regularPrice == null)
             return null;
         return sessionQuote.extendedPrice - sessionQuote.regularPrice;
     }
-    readonly property string priceCaption: Model.rangeCaption(detailRange, sessionQuote)
+    readonly property string priceCaption: Model.rangeCaption(effectiveDetailRange, sessionQuote)
     readonly property bool detailIsFavorite: Model.isFavorite(watchlist, detailSymbol)
     readonly property var detailActionIds: {
         var actions = ["favorite", "pin"];
@@ -419,13 +600,168 @@ Panel {
             quoteRefreshPending = false;
             return;
         }
-        if (quoteProc.running) {
+        // Guard on the whole drain, not just the live process: between one
+        // request exiting and the next starting, running is false while the
+        // queue is still non-empty, and starting a second fan-out there would
+        // cross-wire a response to the wrong provider's parser.
+        if (quoteProc.running || quoteQueue.length > 0) {
             quoteRefreshPending = true;
             return;
         }
         quoteRefreshPending = false;
-        quoteProc.command = ["curl", "-fsS", "--max-time", "8", "-A", "Mozilla/5.0", Model.sparkUrl(quoteSymbols)];
+        quoteQueue = buildQuoteQueue();
+        quoteBatchOk = 0;
+        quoteBatchFailed = 0;
+        quoteBatchMissing = quoteUnservable;
+        if (quoteQueue.length === 0) {
+            // Nothing queued because every provider is within its own refresh
+            // floor is normal; nothing queued because nothing can serve these
+            // symbols is worth saying, but is not a source failure to back off.
+            if (quoteThrottled === 0)
+                quoteError = quoteUnservable > 0 ? "No source for these symbols" : quoteError;
+            return;
+        }
+        startNextQuoteBatch();
+    }
+
+    // Flattens the watchlist into individual requests. A provider may need more
+    // than one - an API taking a single base currency per call cannot cover an
+    // arbitrary set of pairs - so each request carries the ids it actually
+    // covers rather than the whole provider group's.
+    function buildQuoteQueue() {
+        var groups = registry().groupByProvider(quoteSymbols);
+        var queue = [];
+        var now = Date.now();
+        quoteUnservable = 0;
+        quoteThrottled = 0;
+
+        for (var i = 0; i < groups.length; i++) {
+            var group = groups[i];
+            if (!providerSupports(group.refs[0], "quote")) {
+                quoteUnservable += group.ids.length;
+                continue;
+            }
+
+            // A source that publishes once a day does not need the live
+            // interval; asking it every two seconds is waste the provider
+            // itself declares the bound for.
+            var floor = typeof group.provider.minRefreshMs === "function" ? group.provider.minRefreshMs() : 0;
+            var last = providerFetchedAt[group.providerId] || 0;
+            if (floor > 0 && last > 0 && now - last < floor) {
+                quoteThrottled++;
+                continue;
+            }
+
+            var requests = registry().requestList(group.provider.quoteRequest ? group.provider.quoteRequest(group.ids) : null);
+            var covered = {};
+            for (var j = 0; j < requests.length; j++) {
+                var ids = requests[j].ids || group.ids;
+                for (var k = 0; k < ids.length; k++)
+                    covered[ids[k]] = true;
+                queue.push({
+                    providerId: group.providerId,
+                    ids: ids,
+                    argv: requests[j].argv
+                });
+            }
+            // A ref its own provider refuses to build a request for would
+            // otherwise be silently dead: never fetched, never reported.
+            for (var m = 0; m < group.ids.length; m++) {
+                if (!Object.prototype.hasOwnProperty.call(covered, group.ids[m]))
+                    quoteUnservable++;
+            }
+        }
+        return queue;
+    }
+
+    function startNextQuoteBatch() {
+        // A refresh can be scheduled while a deferred advance is still pending;
+        // starting a request on a running process would hand its response to
+        // the wrong provider's parser.
+        if (quoteProc.running)
+            return;
+        if (quoteQueue.length === 0) {
+            finishQuoteRefresh();
+            return;
+        }
+        var batch = quoteQueue.shift();
+        quoteBatchProviderId = batch.providerId;
+        quoteBatchIds = batch.ids;
+        quoteBatchSplit = batch.split === true;
+        quoteProc.command = batch.argv;
         quoteProc.running = true;
+        quoteWatchdog.restart();
+    }
+
+    // A curl that fails to exec never emits exited, which would strand the queue
+    // and, because refresh() waits for the queue to drain, stop the widget
+    // refreshing for the rest of the session. Abandon the drain instead.
+    // Reassigned rather than mutated so the change is visible to anything that
+    // reads it; QML does not notify on in-place edits of a var property.
+    function noteProviderFetched(providerId) {
+        if (!providerId)
+            return;
+        var next = {};
+        for (var key in providerFetchedAt) {
+            if (Object.prototype.hasOwnProperty.call(providerFetchedAt, key))
+                next[key] = providerFetchedAt[key];
+        }
+        next[providerId] = Date.now();
+        providerFetchedAt = next;
+    }
+
+    function abandonQuoteDrain() {
+        quoteQueue = [];
+        quoteBatchFailed++;
+        finishQuoteRefresh();
+    }
+
+    // A batched endpoint can fail wholesale because of a single bad id - Valet
+    // 404s the entire request if one series is unknown - so retry the ids one at
+    // a time before writing the whole provider off.
+    function splitFailedBatch() {
+        var provider = registry().provider(quoteBatchProviderId);
+        var ids = quoteBatchIds || [];
+        var retries = [];
+        for (var i = 0; i < ids.length; i++) {
+            var requests = registry().requestList(provider && provider.quoteRequest ? provider.quoteRequest([ids[i]]) : null);
+            for (var j = 0; j < requests.length; j++) {
+                retries.push({
+                    providerId: quoteBatchProviderId,
+                    ids: requests[j].ids || [ids[i]],
+                    argv: requests[j].argv,
+                    split: true
+                });
+            }
+        }
+        if (retries.length === 0)
+            return false;
+        quoteQueue = retries.concat(quoteQueue);
+        return true;
+    }
+
+    // Failure is judged once the whole queue has run, so one dead provider does
+    // not mark a healthy one as failing.
+    function finishQuoteRefresh() {
+        quoteWatchdog.stop();
+        quoteBatchProviderId = "";
+        quoteBatchIds = [];
+        quoteBatchSplit = false;
+        // Backoff answers "is the source failing", so only a failed request
+        // drives it. An id the source simply never returns is usually a
+        // permanent condition, and counting it would saturate the counter and
+        // stall every healthy symbol alongside it.
+        if (quoteBatchFailed > 0) {
+            quoteFailureCount = Math.min(10, quoteFailureCount + 1);
+            quoteError = quoteBatchOk > 0 ? "Some quotes unavailable" : "Quotes unavailable";
+        } else {
+            quoteFailureCount = 0;
+            quoteError = quoteBatchMissing > 0 ? "Some quotes unavailable" : "";
+        }
+        if (quoteBatchOk > 0)
+            quotesUpdatedAt = Date.now();
+        if (quoteRefreshPending)
+            Qt.callLater(refresh);
     }
 
     function scheduleOpenRefresh() {
@@ -440,9 +776,9 @@ Panel {
     }
 
     function addSymbol(symbol) {
-        var next = Model.addSymbol(watchlist, symbol);
+        var next = Model.addSymbol(watchlist, registry().canonicalRef(Model.normalizeSymbol(symbol)));
         if (next.length === watchlist.length) {
-            var already = Model.normalizeSymbol(symbol);
+            var already = registry().canonicalRef(Model.normalizeSymbol(symbol));
             if (already) {
                 selectedIndex = next.indexOf(already);
                 cursorActive = true;
@@ -606,10 +942,20 @@ Panel {
             return;
         if (chartProc.running)
             return;
+        var provider = providerFor(detailSymbol);
+        if (!provider || !providerSupports(detailSymbol, "chart") || !provider.chartRequest)
+            return;
+        var request = provider.chartRequest(providerIdFor(detailSymbol), effectiveDetailRange);
+        if (!registry().isRequest(request)) {
+            chartFetchSymbol = detailSymbol;
+            chartFetchRange = effectiveDetailRange;
+            chartError = "No chart for this entry";
+            return;
+        }
         chartFetchSymbol = detailSymbol;
-        chartFetchRange = detailRange;
+        chartFetchRange = effectiveDetailRange;
         chartError = "";
-        chartProc.command = ["curl", "-fsS", "--max-time", "8", "-A", "Mozilla/5.0", Model.chartUrl(chartFetchSymbol, chartFetchRange)];
+        chartProc.command = request.argv;
         chartProc.running = true;
     }
 
@@ -627,9 +973,14 @@ Panel {
             return;
         if (insightsProc.running)
             return;
+        var request = detailRequest(detailSymbol, detailKindFor(0));
+        if (!request) {
+            insightsLoaded = true;
+            return;
+        }
         insightsFetchSymbol = detailSymbol;
         insightsError = "";
-        insightsProc.command = ["curl", "-fsS", "--max-time", "8", "-A", "Mozilla/5.0", Model.insightsUrl(insightsFetchSymbol)];
+        insightsProc.command = request.argv;
         insightsProc.running = true;
     }
 
@@ -640,9 +991,14 @@ Panel {
             return;
         if (quotePageProc.running)
             return;
+        var request = detailRequest(detailSymbol, detailKindFor(1));
+        if (!request) {
+            quotePageLoaded = true;
+            return;
+        }
         quotePageFetchSymbol = detailSymbol;
         quotePageError = "";
-        quotePageProc.command = ["curl", "-fsS", "--compressed", "--max-time", "12", "-A", "Mozilla/5.0", Model.quotePageUrl(quotePageFetchSymbol)];
+        quotePageProc.command = request.argv;
         quotePageProc.running = true;
     }
 
@@ -764,7 +1120,30 @@ Panel {
         if (!searching || !searchPendingQuery)
             return;
         searchActiveQuery = searchPendingQuery;
-        searchProc.command = ["curl", "-fsS", "--max-time", "5", "-A", "Mozilla/5.0", Model.searchUrl(searchActiveQuery)];
+        var provider = searchProvider(searchActiveQuery);
+        var term = searchTerm(searchActiveQuery);
+
+        if (!provider || !providerSupports(searchActiveQuery, "search")) {
+            // Say so, rather than leaving it indistinguishable from "no matches".
+            applySuggestions(provider, []);
+            searchError = provider ? (provider.label || provider.id) + " has no search - enter an id directly" : "";
+            return;
+        }
+        searchError = "";
+
+        // A provider with an offline catalogue answers without any request.
+        if (typeof provider.searchLocal === "function") {
+            applySuggestions(provider, provider.searchLocal(term));
+            if (searchPendingQuery !== searchActiveQuery)
+                Qt.callLater(startSearchFetch);
+            return;
+        }
+        var request = provider.searchRequest ? provider.searchRequest(term) : null;
+        if (!registry().isRequest(request)) {
+            applySuggestions(provider, []);
+            return;
+        }
+        searchProc.command = request.argv;
         searchProc.running = true;
     }
 
@@ -775,7 +1154,7 @@ Panel {
                 openDetail(pick.symbol);
             return;
         }
-        var typed = Model.normalizeSymbol(searchQuery || listView.field.text);
+        var typed = registry().canonicalRef(Model.normalizeSymbol(searchQuery || listView.field.text));
         if (typed)
             openDetail(typed);
     }
@@ -899,7 +1278,7 @@ Panel {
                 return;
             }
             var ranges = detailRanges;
-            var idx = ranges.indexOf(detailRange);
+            var idx = ranges.indexOf(effectiveDetailRange);
             if (idx < 0)
                 idx = 0;
             idx = (idx + dx + ranges.length) % ranges.length;
@@ -959,18 +1338,53 @@ Panel {
         id: quoteProc
         onExited: function (exitCode) {
             var raw = String(quoteStdout.text || "").trim();
-            var parsed = exitCode === 0 && raw ? Model.parseSpark(raw) : ({});
-            if (Object.keys(parsed).length > 0) {
-                root.quotes = Model.mergeQuotes(root.quotes, parsed);
-                root.quoteFailureCount = 0;
-                root.quoteError = "";
-                root.quotesUpdatedAt = Date.now();
-            } else {
-                root.quoteFailureCount = Math.min(10, root.quoteFailureCount + 1);
-                root.quoteError = "Quotes unavailable";
+            var provider = root.registry().provider(root.quoteBatchProviderId);
+            var parsed = (exitCode === 0 && raw && provider) ? (provider.parseQuotes(raw, root.quoteBatchIds) || {}) : {};
+
+            // Providers key results by their own ids; they are stored under the
+            // namespaced ref so entries from different sources cannot collide.
+            var keyed = {};
+            var count = 0;
+            var wanted = root.quoteBatchIds || [];
+            var seen = {};
+            for (var id in parsed) {
+                if (!Object.prototype.hasOwnProperty.call(parsed, id))
+                    continue;
+                // A request names what it covers, so a response cannot add
+                // entries this call never asked for.
+                if (wanted.length > 0 && wanted.indexOf(id) === -1)
+                    continue;
+                keyed[root.registry().formatRef(root.quoteBatchProviderId, id)] = parsed[id];
+                seen[id] = true;
+                count++;
             }
-            if (root.quoteRefreshPending)
-                Qt.callLater(root.refresh);
+
+            // A response that answers only some of what it was asked for is
+            // partial: the rest keep their previous value, so reporting success
+            // would present stale prices as freshly updated.
+            var missing = 0;
+            for (var w = 0; w < wanted.length; w++) {
+                if (!Object.prototype.hasOwnProperty.call(seen, wanted[w]))
+                    missing++;
+            }
+
+            if (count > 0 && missing > 0) {
+                root.quotes = Model.mergeQuotes(root.quotes, keyed);
+                root.quoteBatchOk++;
+                root.quoteBatchMissing += missing;
+                root.noteProviderFetched(root.quoteBatchProviderId);
+            } else if (count > 0) {
+                root.quotes = Model.mergeQuotes(root.quotes, keyed);
+                root.quoteBatchOk++;
+                root.noteProviderFetched(root.quoteBatchProviderId);
+            } else if (exitCode === 22 && !root.quoteBatchSplit && (root.quoteBatchIds || []).length > 1 && root.splitFailedBatch()) {
+                // Retrying id-by-id; the tally is only touched once those land.
+            } else {
+                root.quoteBatchFailed++;
+            }
+            // Deferred so the queue advances from a clean stack rather than from
+            // inside the signal handler of the process it is about to reuse.
+            Qt.callLater(root.startNextQuoteBatch);
         }
         stdout: StdioCollector {
             id: quoteStdout
@@ -981,13 +1395,14 @@ Panel {
     Process {
         id: searchProc
         onExited: function (exitCode) {
+            var provider = root.searchProvider(root.searchActiveQuery);
             var results = [];
-            if (exitCode === 0) {
-                results = Model.parseSearch(searchStdout.text);
+            if (exitCode === 0 && provider) {
+                results = root.namespaceSuggestions(provider, provider.parseSearch(searchStdout.text));
                 root.cacheSearchResults(root.searchActiveQuery, results);
             }
             if (root.searching && root.searchActiveQuery === root.searchQuery) {
-                if (exitCode === 0) {
+                if (exitCode === 0 && provider) {
                     root.suggestions = results;
                     root.searchError = "";
                 } else {
@@ -1008,13 +1423,18 @@ Panel {
     Process {
         id: chartProc
         onExited: function (exitCode) {
-            var currentFetch = root.chartFetchSymbol === root.detailSymbol && root.chartFetchRange === root.detailRange;
+            var currentFetch = root.chartFetchSymbol === root.detailSymbol && root.chartFetchRange === root.effectiveDetailRange;
             if (currentFetch) {
-                var parsed = exitCode === 0 ? Model.parseChart(chartStdout.text) : null;
-                var expected = Model.chartSpec(root.detailRange).range;
-                var valid = parsed && parsed.symbol === root.detailSymbol && (!parsed.yahooRange || parsed.yahooRange === expected);
+                var provider = root.providerFor(root.detailSymbol);
+                var wantId = root.providerIdFor(root.detailSymbol);
+                var parsed = (exitCode === 0 && provider) ? provider.parseChart(chartStdout.text, wantId, root.effectiveDetailRange) : null;
+                // Range reconciliation is a Yahoo quirk; a provider that serves
+                // exactly what it was asked reports neither side.
+                var served = (parsed && provider.servedRange) ? provider.servedRange(parsed) : "";
+                var expected = (provider && provider.expectedRange) ? provider.expectedRange(root.effectiveDetailRange) : "";
+                var valid = parsed && parsed.symbol === wantId && (!served || !expected || served === expected);
                 if (valid) {
-                    parsed.chartRange = root.detailRange;
+                    parsed.chartRange = root.effectiveDetailRange;
                     root.detailQuote = parsed;
                     root.chartFailureCount = 0;
                     root.chartError = "";
@@ -1024,7 +1444,7 @@ Panel {
                     root.chartError = "Chart unavailable";
                 }
             }
-            if (root.detailSymbol && (root.chartFetchSymbol !== root.detailSymbol || root.chartFetchRange !== root.detailRange))
+            if (root.detailSymbol && (root.chartFetchSymbol !== root.detailSymbol || root.chartFetchRange !== root.effectiveDetailRange))
                 Qt.callLater(root.startChartFetch);
         }
         stdout: StdioCollector {
@@ -1039,8 +1459,9 @@ Panel {
             var currentFetch = root.insightsFetchSymbol === root.detailSymbol;
             if (currentFetch) {
                 var raw = String(insightsStdout.text || "").trim();
-                if (exitCode === 0 && Model.isInsightsResponse(raw)) {
-                    root.detailInsights = Model.parseInsights(raw);
+                var parsedInsights = exitCode === 0 ? root.parseDetailPayload(root.detailSymbol, root.detailKindFor(0), raw) : null;
+                if (parsedInsights) {
+                    root.detailInsights = parsedInsights;
                     root.cacheDetailData(root.insightsFetchSymbol, "insights", root.detailInsights);
                     root.insightsFailureCount = 0;
                     root.insightsError = "";
@@ -1065,8 +1486,9 @@ Panel {
             var currentFetch = root.quotePageFetchSymbol === root.detailSymbol;
             if (currentFetch) {
                 var raw = String(quotePageStdout.text || "").trim();
-                if (exitCode === 0 && raw) {
-                    root.detailPage = Model.parseQuotePage(raw);
+                var parsedPage = (exitCode === 0 && raw) ? root.parseDetailPayload(root.detailSymbol, root.detailKindFor(1), raw) : null;
+                if (parsedPage) {
+                    root.detailPage = parsedPage;
                     root.cacheDetailData(root.quotePageFetchSymbol, "page", root.detailPage);
                     root.quotePageFailureCount = 0;
                     root.quotePageError = "";
@@ -1121,6 +1543,16 @@ Panel {
             root.refresh()
     }
 
+    // Longer than the longest --max-time any provider sets, so it only fires
+    // when a request produced no exit signal at all.
+    Timer {
+        id: quoteWatchdog
+        interval: 20000
+        repeat: false
+        onTriggered: if (!quoteProc.running)
+            root.abandonQuoteDrain()
+    }
+
     Timer {
         id: liveTimer
         interval: root.liveRefreshMs
@@ -1133,7 +1565,7 @@ Panel {
     Timer {
         id: chartLiveTimer
         interval: root.chartRefreshMs
-        running: root.opened && root.view === "detail" && root.detailRange === "1D"
+        running: root.opened && root.view === "detail" && root.effectiveDetailRange === "1D"
         repeat: true
         onTriggered: root.startChartFetch()
     }

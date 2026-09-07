@@ -120,7 +120,7 @@ Column {
 
                         Text {
                             textFormat: Text.PlainText
-                            text: modelData.symbol
+                            text: controller.displayLabelFor(modelData.symbol)
                             color: controller.contentForeground
                             font.family: controller.contentFontFamily
                             font.pixelSize: Style.font.title
@@ -237,7 +237,7 @@ Column {
                             width: parent.width
                             Text {
                                 textFormat: Text.PlainText
-                                text: symbol
+                                text: controller.displayLabelFor(symbol)
                                 color: controller.contentForeground
                                 font.family: controller.contentFontFamily
                                 font.pixelSize: Style.font.title
