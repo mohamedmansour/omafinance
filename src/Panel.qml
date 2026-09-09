@@ -252,11 +252,13 @@ Panel {
     }
 
     function close() {
-        setCenterHoverRevealSuppressed(false);
+        // Hide first: assigning the (now read-only) hover flag used to throw
+        // and leave the exclusive KeyboardPanel overlay grabbing all input.
         openRefreshTimer.stop();
         root.clearSearch();
         root.view = "list";
         root.controller.hide();
+        setCenterHoverRevealSuppressed(false);
     }
 
     function toggle() {
@@ -273,7 +275,9 @@ Panel {
     }
 
     function setCenterHoverRevealSuppressed(value) {
-        if (root.bar && "centerHoverRevealSuppressed" in root.bar)
+        if (root.bar && typeof root.bar.setCenterHoverRevealSuppressed === "function")
+            root.bar.setCenterHoverRevealSuppressed(value);
+        else if (root.bar && "centerHoverRevealSuppressed" in root.bar)
             root.bar.centerHoverRevealSuppressed = value;
     }
 
