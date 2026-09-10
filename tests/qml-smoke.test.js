@@ -83,6 +83,20 @@ test("quote refresh uses symbols selected for the active view", () => {
   assert.match(panel, /Model\.sparkUrl\(quoteSymbols\)/)
 })
 
+test("all remote responses are capped before reaching stdio collectors", () => {
+  const panel = fs.readFileSync(source("Panel.qml"), "utf8")
+  const boundedFetches = panel.match(/\.command = boundedCurlCommand\(/g) || []
+
+  assert.equal(boundedFetches.length, 5)
+  assert.match(panel, /apiResponseMaxBytes:\s*1048576/)
+  assert.match(panel, /quotePageResponseMaxBytes:\s*4194304/)
+  assert.match(panel, /"--max-filesize", String\(maxBytes\)/)
+  assert.match(panel, /head -c \\"\$\(\(limit \+ 1\)\)\\"/)
+  assert.match(panel, /wc -c <\\"\$tmp\\"/)
+  assert.match(panel, /Model\.quotePageUrl\(quotePageFetchSymbol\), quotePageResponseMaxBytes, 12, true/)
+  assert.doesNotMatch(panel, /\.command = \["curl"/)
+})
+
 test("detail loading is a delayed icon beside the ticker", () => {
   const panel = fs.readFileSync(source("Panel.qml"), "utf8")
   const detail = fs.readFileSync(source("FinanceDetailView.qml"), "utf8")
