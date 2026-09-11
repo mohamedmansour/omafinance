@@ -269,36 +269,43 @@ Column {
         }
     }
 
-    Row {
-        id: rangeRow
-        spacing: Style.space(4)
+    Item {
+        width: parent.width
+        height: rangeRow.implicitHeight
 
-        Repeater {
-            model: controller.detailRanges
+        Row {
+            id: rangeRow
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: Style.space(4)
 
-            Rectangle {
-                required property var modelData
-                readonly property bool current: String(modelData) === controller.detailRange
-                radius: Style.space(6)
-                color: current ? Style.hoverFillFor(controller.contentForeground, Color.accent) : "transparent"
-                implicitWidth: rangeLabel.implicitWidth + Style.space(14)
-                implicitHeight: rangeLabel.implicitHeight + Style.space(8)
+            Repeater {
+                model: controller.detailRanges
 
-                Text {
-                    id: rangeLabel
-                    anchors.centerIn: parent
-                    textFormat: Text.PlainText
-                    text: String(modelData)
-                    color: current ? controller.contentForeground : controller.dim
-                    font.family: controller.contentFontFamily
-                    font.pixelSize: Style.font.bodySmall
-                    font.bold: current
-                }
+                Rectangle {
+                    required property var modelData
+                    readonly property bool current: String(modelData) === controller.detailRange
+                    radius: Style.space(6)
+                    color: current ? Style.hoverFillFor(controller.contentForeground, Color.accent) : "transparent"
+                    implicitWidth: rangeLabel.implicitWidth + Style.space(14)
+                    implicitHeight: rangeLabel.implicitHeight + Style.space(8)
 
-                MouseArea {
-                    anchors.fill: parent
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: controller.setDetailRange(String(modelData))
+                    Text {
+                        id: rangeLabel
+                        anchors.centerIn: parent
+                        textFormat: Text.PlainText
+                        text: String(modelData)
+                        color: current ? controller.contentForeground : controller.dim
+                        font.family: controller.contentFontFamily
+                        font.pixelSize: Style.font.bodySmall
+                        font.bold: current
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: controller.setDetailRange(String(modelData))
+                    }
                 }
             }
         }
@@ -314,15 +321,28 @@ Column {
         elide: Text.ElideRight
     }
 
-    Sparkline {
+    function resetChart() {
+        if (candleChart && candleChart.resetZoom)
+            candleChart.resetZoom();
+    }
+
+    Item {
         width: parent.width
         height: Style.space(140)
-        values: controller.rangeChart && controller.rangeChart.closes ? controller.rangeChart.closes : []
-        lineColor: controller.toneColor(controller.detailRangeChange)
-        fillColor: Qt.rgba(lineColor.r, lineColor.g, lineColor.b, 0.18)
-        interactive: true
-        currency: controller.activeQuote && controller.activeQuote.currency ? controller.activeQuote.currency : "USD"
-        priceHint: controller.activeQuote ? controller.activeQuote.priceHint : 2
+
+        CandlestickChart {
+            id: candleChart
+            anchors.fill: parent
+            symbol: controller.detailSymbol
+            candles: controller.rangeChart && controller.rangeChart.candles ? controller.rangeChart.candles : []
+            upColor: controller.upColor
+            downColor: controller.downColor
+            fontFamily: controller.contentFontFamily
+            currency: controller.activeQuote && controller.activeQuote.currency ? controller.activeQuote.currency : "USD"
+            priceHint: controller.activeQuote ? controller.activeQuote.priceHint : 2
+            rangeKey: controller.detailRange
+            interactive: true
+        }
     }
 
     Row {
