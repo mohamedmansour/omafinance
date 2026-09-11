@@ -32,6 +32,19 @@ test("panel composes the extracted views", () => {
   assert.match(panel, /backoffDelay\(2000, quoteFailureCount, 60000\)/)
 })
 
+test("close hides the overlay before touching the hover-reveal flag", () => {
+  const panel = fs.readFileSync(source("Panel.qml"), "utf8")
+  const closeFn = panel.match(/function close\(\) \{[\s\S]*?\n    \}/)
+
+  assert.ok(closeFn, "close() should be defined")
+  const hideAt = closeFn[0].indexOf("root.controller.hide()")
+  const flagAt = closeFn[0].indexOf("setCenterHoverRevealSuppressed(false)")
+  assert.ok(hideAt >= 0, "close() should call controller.hide()")
+  assert.ok(flagAt >= 0, "close() should still clear the hover-reveal flag")
+  assert.ok(hideAt < flagAt, "controller.hide() must run before the hover-reveal flag")
+  assert.match(panel, /typeof root\.bar\.setCenterHoverRevealSuppressed === "function"/)
+})
+
 test("panel presents before scheduling one non-blocking open refresh", () => {
   const panel = fs.readFileSync(source("Panel.qml"), "utf8")
 
