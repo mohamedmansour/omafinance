@@ -60,6 +60,8 @@ Panel {
     property var searchCacheOrder: []
     readonly property int searchCacheTtlMs: 300000
     readonly property int searchCacheLimit: 32
+    readonly property int apiResponseMaxBytes: 1048576
+    readonly property int quotePageResponseMaxBytes: 4194304
     property string listChrome: "rows"
     property int settingsCursor: 0
     property int detailSection: 0
@@ -418,6 +420,23 @@ Panel {
             Qt.callLater(refresh);
     }
 
+    function boundedCurlCommand(url, maxBytes, maxTime, compressed) {
+        var command = [
+            "bash", "-c",
+            "set -o pipefail; limit=\"$1\"; shift; tmp=$(mktemp) || exit 1; "
+                + "trap 'rm -f \"$tmp\"' EXIT; "
+                + "if ! curl \"$@\" | head -c \"$((limit + 1))\" >\"$tmp\"; then exit 1; fi; "
+                + "[ \"$(wc -c <\"$tmp\")\" -le \"$limit\" ] || exit 1; cat \"$tmp\"",
+            "omafinance-fetch", String(maxBytes),
+            "-fsS", "--max-time", String(maxTime), "--max-filesize", String(maxBytes),
+            "-A", "Mozilla/5.0"
+        ];
+        if (compressed)
+            command.push("--compressed");
+        command.push(url);
+        return command;
+    }
+
     function refresh() {
         if (quoteSymbols.length === 0) {
             quoteRefreshPending = false;
@@ -428,7 +447,7 @@ Panel {
             return;
         }
         quoteRefreshPending = false;
-        quoteProc.command = ["curl", "-fsS", "--max-time", "8", "-A", "Mozilla/5.0", Model.sparkUrl(quoteSymbols)];
+        quoteProc.command = boundedCurlCommand(Model.sparkUrl(quoteSymbols), apiResponseMaxBytes, 8, false);
         quoteProc.running = true;
     }
 
@@ -613,7 +632,7 @@ Panel {
         chartFetchSymbol = detailSymbol;
         chartFetchRange = detailRange;
         chartError = "";
-        chartProc.command = ["curl", "-fsS", "--max-time", "8", "-A", "Mozilla/5.0", Model.chartUrl(chartFetchSymbol, chartFetchRange)];
+        chartProc.command = boundedCurlCommand(Model.chartUrl(chartFetchSymbol, chartFetchRange), apiResponseMaxBytes, 8, false);
         chartProc.running = true;
     }
 
@@ -633,7 +652,7 @@ Panel {
             return;
         insightsFetchSymbol = detailSymbol;
         insightsError = "";
-        insightsProc.command = ["curl", "-fsS", "--max-time", "8", "-A", "Mozilla/5.0", Model.insightsUrl(insightsFetchSymbol)];
+        insightsProc.command = boundedCurlCommand(Model.insightsUrl(insightsFetchSymbol), apiResponseMaxBytes, 8, false);
         insightsProc.running = true;
     }
 
@@ -646,7 +665,7 @@ Panel {
             return;
         quotePageFetchSymbol = detailSymbol;
         quotePageError = "";
-        quotePageProc.command = ["curl", "-fsS", "--compressed", "--max-time", "12", "-A", "Mozilla/5.0", Model.quotePageUrl(quotePageFetchSymbol)];
+        quotePageProc.command = boundedCurlCommand(Model.quotePageUrl(quotePageFetchSymbol), quotePageResponseMaxBytes, 12, true);
         quotePageProc.running = true;
     }
 
@@ -768,7 +787,7 @@ Panel {
         if (!searching || !searchPendingQuery)
             return;
         searchActiveQuery = searchPendingQuery;
-        searchProc.command = ["curl", "-fsS", "--max-time", "5", "-A", "Mozilla/5.0", Model.searchUrl(searchActiveQuery)];
+        searchProc.command = boundedCurlCommand(Model.searchUrl(searchActiveQuery), apiResponseMaxBytes, 5, false);
         searchProc.running = true;
     }
 
