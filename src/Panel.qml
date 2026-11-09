@@ -230,13 +230,17 @@ Panel {
     }
 
     function open() {
+        // Show first: assigning the (now read-only) hover flag used to throw
+        // and leave the panel dead to clicks, since the exception aborted
+        // this function before controller.show() ever ran. Same ordering
+        // fix as close() below.
         openedFromHotkey = false;
-        setCenterHoverRevealSuppressed(false);
         root.view = "list";
         root.clearSearch();
         root.cursorActive = root.watchlist.length > 0;
         root.selectedIndex = 0;
         root.controller.show();
+        setCenterHoverRevealSuppressed(false);
         scheduleOpenRefresh();
     }
 
@@ -277,10 +281,19 @@ Panel {
     }
 
     function setCenterHoverRevealSuppressed(value) {
-        if (root.bar && typeof root.bar.setCenterHoverRevealSuppressed === "function")
+        if (root.bar && typeof root.bar.setCenterHoverRevealSuppressed === "function") {
             root.bar.setCenterHoverRevealSuppressed(value);
-        else if (root.bar && "centerHoverRevealSuppressed" in root.bar)
-            root.bar.centerHoverRevealSuppressed = value;
+        } else if (root.bar && "centerHoverRevealSuppressed" in root.bar) {
+            // Older/stale bar references may only expose a read-only mirror
+            // of this property; assigning to it throws. This call is purely
+            // cosmetic (hover-reveal suppression), so never let it abort
+            // open()/close() and block the panel from toggling.
+            try {
+                root.bar.centerHoverRevealSuppressed = value;
+            } catch (e) {
+                // ignore - read-only bar reference, nothing to do here
+            }
+        }
     }
 
     function toneColor(pct) {
