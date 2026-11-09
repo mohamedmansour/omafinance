@@ -147,9 +147,7 @@ Panel {
     readonly property var rangeChart: {
         if (detailQuote && detailQuote.chartRange === detailRange)
             return detailQuote;
-        if (detailRange === "1D" && quotes[detailSymbol])
-            return quotes[detailSymbol];
-        return null;
+        return detailQuote || null;
     }
     readonly property var detailStats: Model.buildDetailStats(activeQuote, detailPage, detailInsights)
     readonly property var detailRangeChange: Model.rangeChangePercent(rangeChart, detailRange)
@@ -176,8 +174,6 @@ Panel {
         if (view !== "detail" || !detailSymbol)
             return false;
         if (detailQuote && detailQuote.chartRange === detailRange)
-            return false;
-        if (detailRange === "1D" && quotes[detailSymbol])
             return false;
         return true;
     }
@@ -1046,7 +1042,7 @@ Panel {
         onExited: function (exitCode) {
             var currentFetch = root.chartFetchSymbol === root.detailSymbol && root.chartFetchRange === root.detailRange;
             if (currentFetch) {
-                var parsed = exitCode === 0 ? Model.parseChart(chartStdout.text) : null;
+                var parsed = exitCode === 0 ? Model.parseChart(chartStdout.text, root.chartFetchRange) : null;
                 var expected = Model.chartSpec(root.detailRange).range;
                 var valid = parsed && parsed.symbol === root.detailSymbol && (!parsed.yahooRange || parsed.yahooRange === expected);
                 if (valid) {
@@ -1255,6 +1251,14 @@ Panel {
                     return;
                 root.removeSymbol(root.watchlist[root.selectedIndex]);
             }
+            Keys.onPressed: function (event) {
+                if (event.key === Qt.Key_R && (event.modifiers & Qt.AltModifier)) {
+                    if (root.view === "detail" && detailView && detailView.resetChart) {
+                        detailView.resetChart();
+                        event.accepted = true;
+                    }
+                }
+            }
             onTabRequested: function (direction) {
                 root.switchPanel(direction);
             }
@@ -1262,6 +1266,11 @@ Panel {
                 if (root.view === "settings")
                     return;
                 if (root.view === "detail") {
+                    if (t === "r" || t === "R") {
+                        if (detailView && detailView.resetChart)
+                            detailView.resetChart();
+                        return;
+                    }
                     if (t === "f" || t === "F")
                         root.toggleFavorite(root.detailSymbol);
                     else if (t === "p" || t === "P")
@@ -1330,6 +1339,7 @@ Panel {
                     }
 
                     FinanceDetailView {
+                        id: detailView
                         width: parent.width
                         controller: root
                         visible: root.view === "detail"

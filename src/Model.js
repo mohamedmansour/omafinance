@@ -143,7 +143,7 @@ function quoteSymbolsForView(watchlist, detailSymbol, view) {
 }
 
 function chartRanges() {
-  return ["1D", "1W", "1M", "YTD", "1Y", "5Y", "All"]
+  return ["60", "1D", "1W", "1M", "YTD", "1Y"]
 }
 
 function normalizeRange(value) {
@@ -154,13 +154,12 @@ function normalizeRange(value) {
 
 function chartSpec(range) {
   switch (String(range || "1D")) {
-    case "1W": return { range: "5d", interval: "15m" }
-    case "1M": return { range: "1mo", interval: "1d" }
+    case "60": return { range: "1mo", interval: "60m" }
+    case "1W": return { range: "5y", interval: "1wk" }
+    case "1M": return { range: "max", interval: "1mo" }
     case "YTD": return { range: "ytd", interval: "1d" }
-    case "1Y": return { range: "1y", interval: "1d" }
-    case "5Y": return { range: "5y", interval: "1wk" }
-    case "All": return { range: "max", interval: "1mo" }
-    default: return { range: "1d", interval: "5m" }
+    case "1Y": return { range: "max", interval: "1mo" }
+    default: return { range: "1y", interval: "1d" }
   }
 }
 
@@ -212,7 +211,7 @@ function rangeChangePercent(quote, rangeKey) {
 
 function chartUrl(symbol, rangeKey) {
   var spec = chartSpec(rangeKey)
-  var prepost = String(rangeKey || "1D") === "1D" ? "true" : "false"
+  var prepost = "false"
   return "https://query1.finance.yahoo.com/v8/finance/chart/"
     + encodeURIComponent(normalizeSymbol(symbol))
     + "?range=" + spec.range
@@ -262,16 +261,12 @@ function sessionFromMeta(meta) {
 
 function rangeCaption(rangeKey, quote) {
   switch (String(rangeKey || "1D")) {
-    case "1D":
-      var session = quote && quote.session
-      if (session === "regular" || session === "live") return "Live"
-      return "At Close"
-    case "1W": return "Past Week"
-    case "1M": return "Past Month"
-    case "YTD": return "Year to date"
-    case "1Y": return "Past Year"
-    case "5Y": return "Past 5 Years"
-    case "All": return "All time"
+    case "60": return "60-Minute Candles (1 Month)"
+    case "1D": return "1-Day Candles (1 Year)"
+    case "1W": return "1-Week Candles (5 Years)"
+    case "1M": return "1-Month Candles (All Time)"
+    case "YTD": return "Year to date (Daily)"
+    case "1Y": return "1-Year Candles (All Time)"
     default: return ""
   }
 }
@@ -321,7 +316,75 @@ function numericCloses(indicators) {
   return out
 }
 
-function quoteFromChart(result, fallbackSymbol) {
+function aggregateYearlyCandles(candles) {
+  var map = {}
+  var years = []
+  for (var i = 0; i < candles.length; i++) {
+    var c = candles[i]
+    if (!c || !c.timestamp) continue
+    var yr = new Date(c.timestamp * 1000).getFullYear()
+    if (!map[yr]) {
+      map[yr] = {
+        timestamp: c.timestamp,
+        open: c.open,
+        high: c.high,
+        low: c.low,
+        close: c.close,
+        volume: c.volume || 0
+      }
+      years.push(yr)
+    } else {
+      var existing = map[yr]
+      existing.high = Math.max(existing.high, c.high)
+      existing.low = Math.min(existing.low, c.low)
+      existing.close = c.close
+      existing.volume += (c.volume || 0)
+    }
+  }
+  var out = []
+  for (var k = 0; k < years.length; k++) {
+    out.push(map[years[k]])
+  }
+  return out
+}
+
+function parseCandles(timestamps, indicators) {
+  var quote = indicators && indicators.quote && indicators.quote[0] ? indicators.quote[0] : null
+  if (!quote || !quote.close) return []
+  var ts = Array.isArray(timestamps) ? timestamps : []
+  var opens = quote.open || []
+  var highs = quote.high || []
+  var lows = quote.low || []
+  var closes = quote.close || []
+  var volumes = quote.volume || []
+  var out = []
+  var len = closes.length
+  for (var i = 0; i < len; i++) {
+    var c = finiteOrNull(closes[i])
+    if (c === null) continue
+    var o = finiteOrNull(opens[i])
+    var h = finiteOrNull(highs[i])
+    var l = finiteOrNull(lows[i])
+    var v = finiteOrNull(volumes[i])
+    var t = i < ts.length ? finiteOrNull(ts[i]) : null
+    if (o === null) o = c
+    if (h === null) h = Math.max(o, c)
+    if (l === null) l = Math.min(o, c)
+    h = Math.max(h, o, c)
+    l = Math.min(l, o, c)
+    out.push({
+      timestamp: t,
+      open: o,
+      high: h,
+      low: l,
+      close: c,
+      volume: v != null ? v : 0
+    })
+  }
+  return out
+}
+
+function quoteFromChart(result, fallbackSymbol, rangeKey) {
   if (!result || !result.meta) return null
   var meta = result.meta
   var symbol = normalizeSymbol(meta.symbol || fallbackSymbol)
@@ -360,6 +423,16 @@ function quoteFromChart(result, fallbackSymbol) {
   var openPx = finiteOrNull(meta.regularMarketOpen)
   if (openPx === 0) openPx = null
 
+  var candles = parseCandles(result.timestamp, result.indicators)
+  var closes = numericCloses(result.indicators)
+  if (rangeKey === "1Y") {
+    candles = aggregateYearlyCandles(candles)
+    closes = []
+    for (var k = 0; k < candles.length; k++) {
+      closes.push(candles[k].close)
+    }
+  }
+
   return {
     symbol: symbol,
     name: String(meta.shortName || meta.longName || symbol),
@@ -382,7 +455,8 @@ function quoteFromChart(result, fallbackSymbol) {
     fiftyTwoWeekLow: finiteOrNull(meta.fiftyTwoWeekLow),
     priceHint: meta.priceHint,
     yahooRange: meta.range ? String(meta.range) : "",
-    closes: numericCloses(result.indicators)
+    closes: closes,
+    candles: candles
   }
 }
 
@@ -394,7 +468,7 @@ function parseSpark(raw) {
     for (var i = 0; i < results.length; i++) {
       var item = results[i]
       var resp = item && item.response && item.response[0] ? item.response[0] : null
-      var quote = quoteFromChart(resp, item && item.symbol)
+      var quote = quoteFromChart(resp, item && item.symbol, "1D")
       if (quote) out[quote.symbol] = quote
     }
     return out
@@ -403,11 +477,11 @@ function parseSpark(raw) {
   }
 }
 
-function parseChart(raw) {
+function parseChart(raw, rangeKey) {
   try {
     var data = JSON.parse(String(raw || "{}"))
     var result = data.chart && data.chart.result && data.chart.result[0] ? data.chart.result[0] : null
-    return quoteFromChart(result, "")
+    return quoteFromChart(result, "", rangeKey)
   } catch (e) {
     return null
   }
@@ -728,6 +802,45 @@ function nextDividendIso(exIso) {
   return { iso: y + "-" + mm + "-" + dd, estimated: true }
 }
 
+function formatCandleTime(timestamp, rangeKey) {
+  var t = Number(timestamp)
+  if (!isFinite(t) || t <= 0) return ""
+  var d = new Date(t * 1000)
+  var range = String(rangeKey || "1D")
+  var months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+  var mon = months[d.getMonth()]
+  var day = d.getDate()
+  var year = d.getFullYear()
+  var hours = d.getHours()
+  var minutes = d.getMinutes()
+  var ampm = hours >= 12 ? "PM" : "AM"
+  var h12 = hours % 12 || 12
+  var mStr = (minutes < 10 ? "0" : "") + minutes
+  var timeStr = h12 + ":" + mStr + " " + ampm
+
+  if (range === "60") return mon + " " + day + " " + timeStr
+  if (range === "1Y") return String(year)
+  if (range === "1M" || range === "All") return mon + " " + year
+  return mon + " " + day + ", " + year
+}
+
+function stratScenario(current, prev) {
+  if (!current || !prev) return "-"
+  var ch = Number(current.high)
+  var cl = Number(current.low)
+  var ph = Number(prev.high)
+  var pl = Number(prev.low)
+  if (!isFinite(ch) || !isFinite(cl) || !isFinite(ph) || !isFinite(pl)) return "-"
+
+  var breaksHigh = ch > ph
+  var breaksLow = cl < pl
+
+  if (breaksHigh && breaksLow) return "3"
+  if (breaksHigh) return "2u"
+  if (breaksLow) return "2d"
+  return "1"
+}
+
 function buildDetailStats(quote, page, insights) {
   quote = quote || {}
   page = page || {}
@@ -797,6 +910,8 @@ if (typeof module !== "undefined") {
     parseSearch: parseSearch,
     parseSpark: parseSpark,
     parseChart: parseChart,
+    parseCandles: parseCandles,
+    aggregateYearlyCandles: aggregateYearlyCandles,
     mergeQuotes: mergeQuotes,
     backoffDelay: backoffDelay,
     delayedLoaderDelayMs: delayedLoaderDelayMs,
@@ -819,6 +934,8 @@ if (typeof module !== "undefined") {
     parseInsights: parseInsights,
     isInsightsResponse: isInsightsResponse,
     formatIsoDate: formatIsoDate,
+    formatCandleTime: formatCandleTime,
+    stratScenario: stratScenario,
     buildDetailStats: buildDetailStats
   }
 }
